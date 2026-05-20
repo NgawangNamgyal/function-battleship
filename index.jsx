@@ -387,6 +387,140 @@ function DifficultyScreen({ onSelect }) {
   );
 }
 
+function ModeSelectScreen({ difficulty, onSelect, onBack }) {
+  const modes = [
+    { key: 'solo', label: 'SOLO',    desc: 'Identify the hidden functions' },
+    { key: 'bot',  label: 'VS BOT',  desc: 'Bot picks a graph — you decode it' },
+    { key: '1v1',  label: '1v1',     desc: 'Pass-and-play · one shot, then swap' },
+  ];
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#0a0a0f',
+      color: '#e0e0e0',
+      fontFamily: "'Courier New', Courier, monospace",
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+    }}>
+      <h1 style={{
+        fontSize: 32,
+        letterSpacing: '0.2em',
+        color: '#00ff88',
+        textShadow: '0 0 16px #00ff88aa',
+        margin: 0,
+        fontWeight: 900,
+        textTransform: 'uppercase',
+      }}>
+        Function Battleship
+      </h1>
+      <p style={{ color: '#557', letterSpacing: '0.15em', fontSize: 13, margin: 0 }}>
+        SELECT MODE ·{' '}
+        <span style={{ color: '#00ff88' }}>{DIFFICULTY[difficulty].label.toUpperCase()}</span>
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 320 }}>
+        {modes.map(m => (
+          <button
+            key={m.key}
+            onClick={() => onSelect(m.key)}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#00ff88';
+              e.currentTarget.style.boxShadow = '0 0 12px #00ff8833';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = '#2a2a4a';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+            style={{
+              padding: '14px 20px',
+              background: '#0d0d1a',
+              border: '2px solid #2a2a4a',
+              borderRadius: 8,
+              color: '#e0e0e0',
+              fontFamily: 'inherit',
+              fontSize: 15,
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          >
+            <span style={{ fontWeight: 700, letterSpacing: '0.1em' }}>{m.label}</span>
+            <span style={{ fontSize: 12, color: '#557' }}>{m.desc}</span>
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={onBack}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#445',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          fontSize: 12,
+          letterSpacing: '0.1em',
+          marginTop: 4,
+        }}
+      >
+        ← CHANGE DIFFICULTY
+      </button>
+    </div>
+  );
+}
+
+function PassScreen({ toPlayer, onContinue }) {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#050508',
+      color: '#e0e0e0',
+      fontFamily: "'Courier New', Courier, monospace",
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 20,
+    }}>
+      <div style={{ fontSize: 12, letterSpacing: '0.3em', color: '#334', textTransform: 'uppercase' }}>
+        HAND DEVICE TO
+      </div>
+      <div style={{
+        fontSize: 56,
+        fontWeight: 900,
+        letterSpacing: '0.15em',
+        color: '#00ff88',
+        textShadow: '0 0 40px #00ff88bb',
+        textTransform: 'uppercase',
+      }}>
+        PLAYER {toPlayer}
+      </div>
+      <button
+        onClick={onContinue}
+        style={{
+          marginTop: 16,
+          padding: '14px 48px',
+          background: '#001a0d',
+          border: '2px solid #00ff88',
+          borderRadius: 8,
+          color: '#00ff88',
+          fontFamily: 'inherit',
+          fontSize: 16,
+          fontWeight: 700,
+          cursor: 'pointer',
+          letterSpacing: '0.12em',
+          boxShadow: '0 0 24px #00ff8844',
+        }}
+      >
+        I'M READY →
+      </button>
+    </div>
+  );
+}
+
 function Panel({ title, children, accent }) {
   return (
     <div style={{
@@ -412,25 +546,300 @@ function Panel({ title, children, accent }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Shared sub-components for game views
+// ─────────────────────────────────────────────────────────────
+
+function FunctionBankPanel({ difficulty, show, onToggle }) {
+  return (
+    <div style={{ marginBottom: 16, width: '100%', maxWidth: 560 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          padding: '9px 16px',
+          background: show ? '#001a0d' : '#111124',
+          border: `2px solid ${show ? '#00ff88' : '#2a2a4a'}`,
+          borderRadius: show ? '6px 6px 0 0' : 6,
+          color: show ? '#00ff88' : '#668',
+          fontFamily: 'inherit',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: 'pointer',
+          letterSpacing: '0.1em',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: show ? '0 0 12px #00ff8833' : 'none',
+          transition: 'all 0.15s',
+        }}
+      >
+        <span>FUNCTION BANK</span>
+        <span style={{ fontSize: 11 }}>{show ? '▲ HIDE' : '▼ SHOW'}</span>
+      </button>
+      {show && (
+        <div style={{
+          background: '#0d0d1a',
+          border: '2px solid #00ff88',
+          borderTop: 'none',
+          borderRadius: '0 0 6px 6px',
+          padding: '12px 16px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+        }}>
+          {DIFFICULTY[difficulty].bank.map(id => {
+            const fn = FUNCTION_LIBRARY.find(f => f.id === id);
+            return (
+              <span
+                key={id}
+                style={{
+                  padding: '4px 10px',
+                  background: '#0a0a1a',
+                  border: '1px solid #2a2a4a',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: '#aac',
+                  fontFamily: 'inherit',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {fn.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FireGrid({ grid, shotMode, onFire, disabled }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 52px)', gap: 4 }}>
+      {grid.map((rowArr, ri) =>
+        rowArr.map((cell, ci) => {
+          const shot = cell.shots[shotMode];
+          const fired = shot.fired;
+          const isHit = shot.hits.length > 0;
+          let bg = '#111124';
+          let border = '1px solid #1e1e3a';
+          let glow = 'none';
+          if (fired && isHit)  { bg = '#003322'; border = '1px solid #00ff88'; glow = '0 0 8px #00ff8866'; }
+          if (fired && !isHit) { bg = '#220011'; border = '1px solid #ff4444'; }
+          return (
+            <button
+              key={`${ri}-${ci}`}
+              onClick={() => onFire(ci, ri)}
+              disabled={disabled}
+              style={{
+                width: 52, height: 52,
+                background: bg,
+                border,
+                borderRadius: 4,
+                cursor: disabled ? 'default' : 'crosshair',
+                boxShadow: glow,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                color: fired ? (isHit ? '#00ff88' : '#ff4444') : '#333',
+                fontFamily: 'inherit',
+                transition: 'background 0.15s, box-shadow 0.15s',
+              }}
+            >
+              {fired ? (isHit ? '●' : '×') : `${ci-2},${2-ri}`}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function ShotModeButtons({ shotMode, onChange }) {
+  const modes = [
+    { key: 'f',  label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F',  label: 'F(x)' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      {modes.map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          style={{
+            padding: '10px 20px',
+            background: shotMode === key ? '#00ff1122' : '#111124',
+            border: `2px solid ${shotMode === key ? '#00ff88' : '#2a2a4a'}`,
+            borderRadius: 6,
+            color: shotMode === key ? '#00ff88' : '#668',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            letterSpacing: '0.05em',
+            boxShadow: shotMode === key ? '0 0 12px #00ff8844' : 'none',
+            transition: 'all 0.15s',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GuessInput({ value, onChange, onSubmit, message, activeFunctions, identifiedIds }) {
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onSubmit()}
+          placeholder="e.g. sin(x), x^2, e^x"
+          style={{
+            padding: '10px 14px',
+            background: '#0d0d1a',
+            border: '2px solid #2a2a4a',
+            borderRadius: 6,
+            color: '#e0e0e0',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            width: 220,
+            outline: 'none',
+          }}
+        />
+        <button
+          onClick={onSubmit}
+          style={{
+            padding: '10px 20px',
+            background: '#001a0d',
+            border: '2px solid #00ff88',
+            borderRadius: 6,
+            color: '#00ff88',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 0 10px #00ff8833',
+            transition: 'all 0.15s',
+          }}
+        >
+          SUBMIT
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em' }}>REMAINING:</span>
+        {activeFunctions.map(({ fn, color }) => {
+          const found = identifiedIds.includes(fn.id);
+          return (
+            <span
+              key={fn.id}
+              style={{
+                color: found ? '#222' : color,
+                fontSize: 20,
+                textShadow: found ? 'none' : `0 0 8px ${color}`,
+                transition: 'color 0.3s',
+              }}
+            >
+              ●
+            </span>
+          );
+        })}
+      </div>
+      {message && (
+        <div style={{
+          marginTop: 8,
+          color: message === 'Already found!' ? '#ffd700' : '#ff4444',
+          fontSize: 13,
+          letterSpacing: '0.05em',
+        }}>
+          {message}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main App
+// ─────────────────────────────────────────────────────────────
+
 export default function App() {
+  // phase: 'difficulty' | 'mode' | 'solo' | 'mp' | 'pass'
+  const [phase, setPhase] = useState('difficulty');
   const [difficulty, setDifficulty] = useState(null);
+  const [gameMode, setGameMode] = useState(null);
+  const [showFunctionBank, setShowFunctionBank] = useState(false);
+
+  // ── Solo state ──
   const [activeFunctions, setActiveFunctions] = useState([]);
   const [grid, setGrid] = useState(initGrid);
   const [shotMode, setShotMode] = useState('f');
   const [guess, setGuess] = useState('');
   const [won, setWon] = useState(false);
   const [message, setMessage] = useState('');
-  const [showFunctionBank, setShowFunctionBank] = useState(false);
 
-  function startGame(diff) {
+  // ── 1v1 / bot state ──
+  // p1Slot: P1's hidden functions + grid where P2 fires
+  // p2Slot: P2's hidden functions + grid where P1 fires
+  const [p1Slot, setP1Slot] = useState(null);
+  const [p2Slot, setP2Slot] = useState(null);
+  const [mpP1Identified, setMpP1Identified] = useState([]); // fnIds P1 guessed from p2Slot
+  const [mpP2Identified, setMpP2Identified] = useState([]); // fnIds P2 guessed from p1Slot
+  const [mpCurrentPlayer, setMpCurrentPlayer] = useState(1);
+  const [mpPassTo, setMpPassTo] = useState(null);
+  const [mpShotMode, setMpShotMode] = useState('f');
+  const [mpGuess, setMpGuess] = useState('');
+  const [mpMessage, setMpMessage] = useState('');
+  const [mpWinner, setMpWinner] = useState(null); // 1 | 2
+
+  // ── Navigation ──
+
+  function handleDifficultySelect(diff) {
     setDifficulty(diff);
-    setActiveFunctions(selectFunctions(diff));
-    setGrid(initGrid());
-    setShotMode('f');
-    setGuess('');
-    setWon(false);
-    setMessage('');
+    setPhase('mode');
   }
+
+  function handleModeSelect(mode) {
+    setGameMode(mode);
+    setShowFunctionBank(false);
+
+    if (mode === 'solo' || mode === 'bot') {
+      setActiveFunctions(selectFunctions(difficulty));
+      setGrid(initGrid());
+      setShotMode('f');
+      setGuess('');
+      setWon(false);
+      setMessage('');
+      setPhase('solo');
+    } else {
+      // 1v1
+      setP1Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
+      setP2Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
+      setMpP1Identified([]);
+      setMpP2Identified([]);
+      setMpCurrentPlayer(1);
+      setMpPassTo(null);
+      setMpShotMode('f');
+      setMpGuess('');
+      setMpMessage('');
+      setMpWinner(null);
+      setPhase('mp');
+    }
+  }
+
+  function goHome() {
+    setPhase('difficulty');
+    setDifficulty(null);
+    setGameMode(null);
+    setShowFunctionBank(false);
+  }
+
+  // ── Solo game logic ──
 
   function fireShot(col, row) {
     if (won) return;
@@ -444,10 +853,7 @@ export default function App() {
     setGrid(prev => prev.map((r, ri) =>
       r.map((c, ci) => {
         if (ri !== row || ci !== col) return c;
-        return {
-          ...c,
-          shots: { ...c.shots, [shotMode]: { fired: true, hits } },
-        };
+        return { ...c, shots: { ...c.shots, [shotMode]: { fired: true, hits } } };
       })
     ));
   }
@@ -458,18 +864,13 @@ export default function App() {
 
     const alreadyGuessed = activeFunctions.find(({ fn, guessed }) => {
       if (!guessed) return false;
-      const targets = [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, ''));
-      return targets.includes(normalized);
+      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
     });
-    if (alreadyGuessed) {
-      setMessage('Already found!');
-      return;
-    }
+    if (alreadyGuessed) { setMessage('Already found!'); return; }
 
     const match = activeFunctions.find(({ fn, guessed }) => {
       if (guessed) return false;
-      const targets = [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, ''));
-      return targets.includes(normalized);
+      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
     });
 
     if (match) {
@@ -485,225 +886,212 @@ export default function App() {
     }
   }
 
+  // ── 1v1 game logic ──
+
+  function mpFireShot(col, row) {
+    if (mpWinner) return;
+    const isP1 = mpCurrentPlayer === 1;
+    const targetSlot = isP1 ? p2Slot : p1Slot;
+    const setTargetSlot = isP1 ? setP2Slot : setP1Slot;
+
+    if (targetSlot.grid[row][col].shots[mpShotMode].fired) return;
+
+    const hits = targetSlot.functions
+      .filter(({ fn }) => doesFunctionPassThrough(fn[mpShotMode], col, row))
+      .map(({ fn, color }) => ({ fnId: fn.id, color }));
+
+    const newGrid = targetSlot.grid.map((r, ri) =>
+      r.map((c, ci) => {
+        if (ri !== row || ci !== col) return c;
+        return { ...c, shots: { ...c.shots, [mpShotMode]: { fired: true, hits } } };
+      })
+    );
+
+    setTargetSlot({ ...targetSlot, grid: newGrid });
+
+    const nextPlayer = isP1 ? 2 : 1;
+    setMpPassTo(nextPlayer);
+    setMpGuess('');
+    setMpMessage('');
+    setMpShotMode('f');
+    setPhase('pass');
+  }
+
+  function handlePassContinue() {
+    setMpCurrentPlayer(mpPassTo);
+    setMpPassTo(null);
+    setPhase('mp');
+  }
+
+  function mpHandleGuess() {
+    const normalized = mpGuess.trim().toLowerCase().replace(/\s/g, '');
+    if (!normalized) return;
+
+    const isP1 = mpCurrentPlayer === 1;
+    const targetSlot = isP1 ? p2Slot : p1Slot;
+    const identified = isP1 ? mpP1Identified : mpP2Identified;
+    const setIdentified = isP1 ? setMpP1Identified : setMpP2Identified;
+
+    const alreadyFound = targetSlot.functions.find(({ fn }) => {
+      if (!identified.includes(fn.id)) return false;
+      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
+    });
+    if (alreadyFound) { setMpMessage('Already found!'); return; }
+
+    const match = targetSlot.functions.find(({ fn }) => {
+      if (identified.includes(fn.id)) return false;
+      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
+    });
+
+    if (match) {
+      const newIdentified = [...identified, match.fn.id];
+      setIdentified(newIdentified);
+      setMpGuess('');
+      setMpMessage('');
+      if (newIdentified.length === targetSlot.functions.length) {
+        setMpWinner(isP1 ? 1 : 2);
+      }
+    } else {
+      setMpMessage('Not quite.');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Routing
+  // ─────────────────────────────────────────────────────────────
+
+  if (phase === 'difficulty') {
+    return <DifficultyScreen onSelect={handleDifficultySelect} />;
+  }
+
+  if (phase === 'mode') {
+    return (
+      <ModeSelectScreen
+        difficulty={difficulty}
+        onSelect={handleModeSelect}
+        onBack={() => setPhase('difficulty')}
+      />
+    );
+  }
+
+  if (phase === 'pass') {
+    return <PassScreen toPlayer={mpPassTo} onContinue={handlePassContinue} />;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Solo / Bot game view
+  // ─────────────────────────────────────────────────────────────
+
   const shotModes = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
     { key: 'F',  label: 'F(x)' },
   ];
 
-  if (!difficulty) {
-    return <DifficultyScreen onSelect={startGame} />;
-  }
+  if (phase === 'solo') {
+    const diffLabel = DIFFICULTY[difficulty].label;
+    const modeLabel = gameMode === 'bot' ? 'VS BOT' : 'SOLO';
 
-  const diffLabel = DIFFICULTY[difficulty].label;
-  const unguessedCount = activeFunctions.filter(af => !af.guessed).length;
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      color: '#e0e0e0',
-      fontFamily: "'Courier New', Courier, monospace",
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '24px 16px',
-    }}>
-      <div style={{ marginBottom: 24, textAlign: 'center' }}>
-        <h1 style={{
-          fontSize: 28,
-          letterSpacing: '0.2em',
-          color: '#00ff88',
-          textShadow: '0 0 16px #00ff88aa',
-          margin: 0,
-          fontWeight: 900,
-          textTransform: 'uppercase',
-        }}>
-          Function Battleship
-        </h1>
-        <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
-          DIFFICULTY: <span style={{ color: '#00ff88' }}>{diffLabel.toUpperCase()}</span>
-          {' · '}IDENTIFY ALL HIDDEN FUNCTIONS
-        </div>
-      </div>
-
+    return (
       <div style={{
+        minHeight: '100vh',
+        background: '#0a0a0f',
+        color: '#e0e0e0',
+        fontFamily: "'Courier New', Courier, monospace",
         display: 'flex',
-        gap: 16,
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        marginBottom: 20,
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '24px 16px',
       }}>
-        <Panel title="FIRE GRID">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 52px)', gap: 4 }}>
-            {grid.map((rowArr, ri) =>
-              rowArr.map((cell, ci) => {
-                const shot = cell.shots[shotMode];
-                const fired = shot.fired;
-                const isHit = shot.hits.length > 0;
-                let bg = '#111124';
-                let border = '1px solid #1e1e3a';
-                let glow = 'none';
-                if (fired && isHit)  { bg = '#003322'; border = '1px solid #00ff88'; glow = '0 0 8px #00ff8866'; }
-                if (fired && !isHit) { bg = '#220011'; border = '1px solid #ff4444'; }
-                return (
-                  <button
-                    key={`${ri}-${ci}`}
-                    onClick={() => fireShot(ci, ri)}
-                    disabled={won}
-                    style={{
-                      width: 52, height: 52,
-                      background: bg,
-                      border,
-                      borderRadius: 4,
-                      cursor: won ? 'default' : 'crosshair',
-                      boxShadow: glow,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 10,
-                      color: fired ? (isHit ? '#00ff88' : '#ff4444') : '#333',
-                      fontFamily: 'inherit',
-                      transition: 'background 0.15s, box-shadow 0.15s',
-                    }}
-                  >
-                    {fired ? (isHit ? '●' : '×') : `${ci-2},${2-ri}`}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </Panel>
-
-        {shotModes.map(({ key, label }) => (
-          <Panel key={key} title={label} accent={shotMode === key ? '#00ff88' : undefined}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 50px)', gap: 2 }}>
-              {grid.map((rowArr, ri) =>
-                rowArr.map((cell, ci) => (
-                  <GraphCell
-                    key={`${ri}-${ci}`}
-                    shotType={key}
-                    col={ci}
-                    row={ri}
-                    cellShots={cell.shots}
-                    activeFunctions={activeFunctions}
-                  />
-                ))
-              )}
-            </div>
-          </Panel>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {shotModes.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setShotMode(key)}
-            style={{
-              padding: '10px 20px',
-              background: shotMode === key ? '#00ff1122' : '#111124',
-              border: `2px solid ${shotMode === key ? '#00ff88' : '#2a2a4a'}`,
-              borderRadius: 6,
-              color: shotMode === key ? '#00ff88' : '#668',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer',
-              letterSpacing: '0.05em',
-              boxShadow: shotMode === key ? '0 0 12px #00ff8844' : 'none',
-              transition: 'all 0.15s',
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: 16, width: '100%', maxWidth: 560 }}>
-        <button
-          onClick={() => setShowFunctionBank(p => !p)}
-          style={{
-            width: '100%',
-            padding: '9px 16px',
-            background: showFunctionBank ? '#001a0d' : '#111124',
-            border: `2px solid ${showFunctionBank ? '#00ff88' : '#2a2a4a'}`,
-            borderRadius: showFunctionBank ? '6px 6px 0 0' : 6,
-            color: showFunctionBank ? '#00ff88' : '#668',
-            fontFamily: 'inherit',
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: 'pointer',
-            letterSpacing: '0.1em',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: showFunctionBank ? '0 0 12px #00ff8833' : 'none',
-            transition: 'all 0.15s',
-          }}
-        >
-          <span>FUNCTION BANK</span>
-          <span style={{ fontSize: 11 }}>{showFunctionBank ? '▲ HIDE' : '▼ SHOW'}</span>
-        </button>
-        {showFunctionBank && (
-          <div style={{
-            background: '#0d0d1a',
-            border: '2px solid #00ff88',
-            borderTop: 'none',
-            borderRadius: '0 0 6px 6px',
-            padding: '12px 16px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
+        <div style={{ marginBottom: 24, textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: 28,
+            letterSpacing: '0.2em',
+            color: '#00ff88',
+            textShadow: '0 0 16px #00ff88aa',
+            margin: 0,
+            fontWeight: 900,
+            textTransform: 'uppercase',
           }}>
-            {DIFFICULTY[difficulty].bank.map(id => {
-              const fn = FUNCTION_LIBRARY.find(f => f.id === id);
-              return (
-                <span
-                  key={id}
-                  style={{
-                    padding: '4px 10px',
-                    background: '#0a0a1a',
-                    border: '1px solid #2a2a4a',
-                    borderRadius: 4,
-                    fontSize: 12,
-                    color: '#aac',
-                    fontFamily: 'inherit',
-                    letterSpacing: '0.05em',
-                  }}
-                >
+            Function Battleship
+          </h1>
+          <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
+            {modeLabel} · <span style={{ color: '#00ff88' }}>{diffLabel.toUpperCase()}</span>
+            {' · '}IDENTIFY ALL HIDDEN FUNCTIONS
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: 16,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          marginBottom: 20,
+        }}>
+          <Panel title="FIRE GRID">
+            <FireGrid grid={grid} shotMode={shotMode} onFire={fireShot} disabled={won} />
+          </Panel>
+
+          {shotModes.map(({ key, label }) => (
+            <Panel key={key} title={label} accent={shotMode === key ? '#00ff88' : undefined}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 50px)', gap: 2 }}>
+                {grid.map((rowArr, ri) =>
+                  rowArr.map((cell, ci) => (
+                    <GraphCell
+                      key={`${ri}-${ci}`}
+                      shotType={key}
+                      col={ci}
+                      row={ri}
+                      cellShots={cell.shots}
+                      activeFunctions={activeFunctions}
+                    />
+                  ))
+                )}
+              </div>
+            </Panel>
+          ))}
+        </div>
+
+        <ShotModeButtons shotMode={shotMode} onChange={setShotMode} />
+
+        <FunctionBankPanel
+          difficulty={difficulty}
+          show={showFunctionBank}
+          onToggle={() => setShowFunctionBank(p => !p)}
+        />
+
+        {!won ? (
+          <GuessInput
+            value={guess}
+            onChange={v => { setGuess(v); setMessage(''); }}
+            onSubmit={handleGuess}
+            message={message}
+            activeFunctions={activeFunctions}
+            identifiedIds={activeFunctions.filter(af => af.guessed).map(af => af.fn.id)}
+          />
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              fontSize: 20,
+              color: '#00ff88',
+              textShadow: '0 0 20px #00ff88',
+              fontWeight: 900,
+              letterSpacing: '0.15em',
+              marginBottom: 8,
+            }}>
+              TARGET{activeFunctions.length > 1 ? 'S' : ''} IDENTIFIED
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+              {activeFunctions.map(({ fn, color }) => (
+                <span key={fn.id} style={{ color, fontSize: 16, fontWeight: 700, textShadow: `0 0 8px ${color}` }}>
                   {fn.label}
                 </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {!won ? (
-        <>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-            <input
-              value={guess}
-              onChange={e => { setGuess(e.target.value); setMessage(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleGuess()}
-              placeholder="e.g. sin(x), x^2, e^x"
-              style={{
-                padding: '10px 14px',
-                background: '#0d0d1a',
-                border: '2px solid #2a2a4a',
-                borderRadius: 6,
-                color: '#e0e0e0',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                width: 220,
-                outline: 'none',
-              }}
-            />
+              ))}
+            </div>
             <button
-              onClick={handleGuess}
+              onClick={goHome}
               style={{
-                padding: '10px 20px',
+                padding: '10px 28px',
                 background: '#001a0d',
                 border: '2px solid #00ff88',
                 borderRadius: 6,
@@ -712,54 +1100,104 @@ export default function App() {
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 0 10px #00ff8833',
-                transition: 'all 0.15s',
+                boxShadow: '0 0 14px #00ff8855',
               }}
             >
-              SUBMIT
+              NEW MISSION
             </button>
           </div>
+        )}
 
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em' }}>REMAINING:</span>
-            {activeFunctions.map(({ fn, color, guessed }) => (
-              <span
-                key={fn.id}
-                style={{
-                  color: guessed ? '#222' : color,
-                  fontSize: 20,
-                  textShadow: guessed ? 'none' : `0 0 8px ${color}`,
-                  transition: 'color 0.3s',
-                }}
-              >
-                ●
-              </span>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div style={{ textAlign: 'center' }}>
+        <div style={{
+          marginTop: 28,
+          fontSize: 11,
+          color: '#445',
+          display: 'flex',
+          gap: 20,
+          letterSpacing: '0.05em',
+        }}>
+          <span><span style={{ color: '#00ff88' }}>●</span> HIT</span>
+          <span><span style={{ color: '#ff4444' }}>×</span> MISS</span>
+          <span style={{ color: '#336' }}>Click grid cell to fire · identify all functions to win</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 1v1 game view
+  // ─────────────────────────────────────────────────────────────
+
+  if (phase === 'mp') {
+    const isP1 = mpCurrentPlayer === 1;
+    const targetSlot = isP1 ? p2Slot : p1Slot;
+    const identified = isP1 ? mpP1Identified : mpP2Identified;
+    const enemyLabel = isP1 ? 'PLAYER 2' : 'PLAYER 1';
+    const diffLabel = DIFFICULTY[difficulty].label;
+
+    // Win screen
+    if (mpWinner !== null) {
+      const winnerFunctions = mpWinner === 1 ? p2Slot.functions : p1Slot.functions;
+      const loserFunctions  = mpWinner === 1 ? p1Slot.functions : p2Slot.functions;
+      return (
+        <div style={{
+          minHeight: '100vh',
+          background: '#0a0a0f',
+          color: '#e0e0e0',
+          fontFamily: "'Courier New', Courier, monospace",
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          padding: '24px 16px',
+        }}>
           <div style={{
-            fontSize: 20,
-            color: '#00ff88',
-            textShadow: '0 0 20px #00ff88',
+            fontSize: 13,
+            letterSpacing: '0.2em',
+            color: '#557',
+            textTransform: 'uppercase',
+          }}>
+            MISSION COMPLETE
+          </div>
+          <div style={{
+            fontSize: 36,
             fontWeight: 900,
             letterSpacing: '0.15em',
-            marginBottom: 8,
+            color: '#00ff88',
+            textShadow: '0 0 32px #00ff88aa',
           }}>
-            TARGET{activeFunctions.length > 1 ? 'S' : ''} IDENTIFIED
+            PLAYER {mpWinner} WINS
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-            {activeFunctions.map(({ fn, color }) => (
-              <span key={fn.id} style={{ color, fontSize: 16, fontWeight: 700, textShadow: `0 0 8px ${color}` }}>
-                {fn.label}
-              </span>
-            ))}
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: '#445', letterSpacing: '0.15em', marginBottom: 6 }}>
+              ENEMY FUNCTIONS WERE
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {winnerFunctions.map(({ fn, color }) => (
+                <span key={fn.id} style={{ color, fontSize: 15, fontWeight: 700, textShadow: `0 0 8px ${color}` }}>
+                  {fn.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#445', letterSpacing: '0.15em', marginBottom: 6 }}>
+              YOUR FUNCTIONS WERE
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {loserFunctions.map(({ fn, color }) => (
+                <span key={fn.id} style={{ color: '#557', fontSize: 15, fontWeight: 700 }}>
+                  {fn.label}
+                </span>
+              ))}
+            </div>
           </div>
           <button
-            onClick={() => setDifficulty(null)}
+            onClick={goHome}
             style={{
-              padding: '10px 28px',
+              marginTop: 16,
+              padding: '12px 32px',
               background: '#001a0d',
               border: '2px solid #00ff88',
               borderRadius: 6,
@@ -774,31 +1212,115 @@ export default function App() {
             NEW MISSION
           </button>
         </div>
-      )}
+      );
+    }
 
-      {message && (
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#0a0a0f',
+        color: '#e0e0e0',
+        fontFamily: "'Courier New', Courier, monospace",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '24px 16px',
+      }}>
+        <div style={{ marginBottom: 24, textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: 28,
+            letterSpacing: '0.2em',
+            color: '#00ff88',
+            textShadow: '0 0 16px #00ff88aa',
+            margin: 0,
+            fontWeight: 900,
+            textTransform: 'uppercase',
+          }}>
+            Function Battleship
+          </h1>
+          <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
+            1v1 · <span style={{ color: '#00ff88' }}>{diffLabel.toUpperCase()}</span>
+            {' · '}
+            <span style={{ color: '#66b3ff', fontWeight: 700 }}>
+              PLAYER {mpCurrentPlayer}'S TURN
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: '#334', marginTop: 4, letterSpacing: '0.08em' }}>
+            FIRING AT {enemyLabel}'S GRID · GUESS THEIR FUNCTIONS TO WIN
+          </div>
+        </div>
+
         <div style={{
-          marginTop: 10,
-          color: message === 'Already found!' ? '#ffd700' : '#ff4444',
-          fontSize: 13,
+          display: 'flex',
+          gap: 16,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          marginBottom: 20,
+        }}>
+          <Panel title={`${enemyLabel}'S GRID`}>
+            <FireGrid
+              grid={targetSlot.grid}
+              shotMode={mpShotMode}
+              onFire={mpFireShot}
+              disabled={false}
+            />
+          </Panel>
+
+          {shotModes.map(({ key, label }) => (
+            <Panel key={key} title={label} accent={mpShotMode === key ? '#00ff88' : undefined}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 50px)', gap: 2 }}>
+                {targetSlot.grid.map((rowArr, ri) =>
+                  rowArr.map((cell, ci) => (
+                    <GraphCell
+                      key={`${ri}-${ci}`}
+                      shotType={key}
+                      col={ci}
+                      row={ri}
+                      cellShots={cell.shots}
+                      activeFunctions={targetSlot.functions}
+                    />
+                  ))
+                )}
+              </div>
+            </Panel>
+          ))}
+        </div>
+
+        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} />
+
+        <FunctionBankPanel
+          difficulty={difficulty}
+          show={showFunctionBank}
+          onToggle={() => setShowFunctionBank(p => !p)}
+        />
+
+        <GuessInput
+          value={mpGuess}
+          onChange={v => { setMpGuess(v); setMpMessage(''); }}
+          onSubmit={mpHandleGuess}
+          message={mpMessage}
+          activeFunctions={targetSlot.functions}
+          identifiedIds={identified}
+        />
+
+        <div style={{ marginTop: 12, fontSize: 10, color: '#334', letterSpacing: '0.08em' }}>
+          Fire a shot to pass to the next player
+        </div>
+
+        <div style={{
+          marginTop: 20,
+          fontSize: 11,
+          color: '#445',
+          display: 'flex',
+          gap: 20,
           letterSpacing: '0.05em',
         }}>
-          {message}
+          <span><span style={{ color: '#00ff88' }}>●</span> HIT</span>
+          <span><span style={{ color: '#ff4444' }}>×</span> MISS</span>
         </div>
-      )}
-
-      <div style={{
-        marginTop: 28,
-        fontSize: 11,
-        color: '#445',
-        display: 'flex',
-        gap: 20,
-        letterSpacing: '0.05em',
-      }}>
-        <span><span style={{ color: '#00ff88' }}>●</span> HIT</span>
-        <span><span style={{ color: '#ff4444' }}>×</span> MISS</span>
-        <span style={{ color: '#336' }}>Click grid cell to fire · identify all functions to win</span>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }
