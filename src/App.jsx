@@ -389,9 +389,8 @@ function DifficultyScreen({ onSelect }) {
 
 function ModeSelectScreen({ difficulty, onSelect, onBack }) {
   const modes = [
-    { key: 'solo', label: 'SOLO',    desc: 'Identify the hidden functions' },
-    { key: 'bot',  label: 'VS BOT',  desc: 'Bot picks a graph — you decode it' },
-    { key: '1v1',  label: '1v1',     desc: 'Pass-and-play · one shot, then swap' },
+    { key: 'solo', label: 'SOLO', desc: 'Identify the hidden functions' },
+    { key: '1v1',  label: '1v1',  desc: 'Pass-and-play · one shot, then swap' },
   ];
   return (
     <div style={{
@@ -472,7 +471,7 @@ function ModeSelectScreen({ difficulty, onSelect, onBack }) {
   );
 }
 
-function PassScreen({ toPlayer, onContinue }) {
+function PassScreen({ toPlayer, bonusTurn, onContinue }) {
   return (
     <div style={{
       minHeight: '100vh',
@@ -485,6 +484,17 @@ function PassScreen({ toPlayer, onContinue }) {
       justifyContent: 'center',
       gap: 20,
     }}>
+      {bonusTurn && (
+        <div style={{
+          fontSize: 13,
+          letterSpacing: '0.2em',
+          color: '#ffd700',
+          textTransform: 'uppercase',
+          textShadow: '0 0 8px #ffd70088',
+        }}>
+          BONUS TURN — OPPONENT GUESSED WRONG
+        </div>
+      )}
       <div style={{ fontSize: 12, letterSpacing: '0.3em', color: '#334', textTransform: 'uppercase' }}>
         HAND DEVICE TO
       </div>
@@ -796,6 +806,9 @@ export default function App() {
   const [mpGuess, setMpGuess] = useState('');
   const [mpMessage, setMpMessage] = useState('');
   const [mpWinner, setMpWinner] = useState(null); // 1 | 2
+  const [mpShotFiredThisTurn, setMpShotFiredThisTurn] = useState(false);
+  const [mpBonusTurnsRemaining, setMpBonusTurnsRemaining] = useState(0);
+  const [mpNextPassIsBonusTurn, setMpNextPassIsBonusTurn] = useState(false);
 
   // ── Navigation ──
 
@@ -808,7 +821,7 @@ export default function App() {
     setGameMode(mode);
     setShowFunctionBank(false);
 
-    if (mode === 'solo' || mode === 'bot') {
+    if (mode === 'solo') {
       setActiveFunctions(selectFunctions(difficulty));
       setGrid(initGrid());
       setShotMode('f');
@@ -828,6 +841,9 @@ export default function App() {
       setMpGuess('');
       setMpMessage('');
       setMpWinner(null);
+      setMpShotFiredThisTurn(false);
+      setMpBonusTurnsRemaining(0);
+      setMpNextPassIsBonusTurn(false);
       setPhase('mp');
     }
   }
@@ -889,7 +905,7 @@ export default function App() {
   // ── 1v1 game logic ──
 
   function mpFireShot(col, row) {
-    if (mpWinner) return;
+    if (mpWinner || mpShotFiredThisTurn) return;
     const isP1 = mpCurrentPlayer === 1;
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const setTargetSlot = isP1 ? setP2Slot : setP1Slot;
@@ -908,18 +924,42 @@ export default function App() {
     );
 
     setTargetSlot({ ...targetSlot, grid: newGrid });
+    setMpShotFiredThisTurn(true);
+  }
 
-    const nextPlayer = isP1 ? 2 : 1;
-    setMpPassTo(nextPlayer);
+  function endMpTurn(wrongGuess = false) {
+    const nextPlayer = mpCurrentPlayer === 1 ? 2 : 1;
+    setMpShotFiredThisTurn(false);
+    setMpShotMode('f');
     setMpGuess('');
     setMpMessage('');
-    setMpShotMode('f');
+
+    if (wrongGuess && mpBonusTurnsRemaining > 0) {
+      // wrong guess during a bonus turn — cancel the bonus, pass back normally
+      setMpBonusTurnsRemaining(0);
+      setMpPassTo(nextPlayer);
+      setMpNextPassIsBonusTurn(false);
+    } else if (wrongGuess) {
+      // wrong guess on a normal turn — next player gets 2 turns
+      setMpBonusTurnsRemaining(1);
+      setMpPassTo(nextPlayer);
+      setMpNextPassIsBonusTurn(true);
+    } else if (mpBonusTurnsRemaining > 0) {
+      // normal end during bonus turn — use the bonus
+      setMpBonusTurnsRemaining(prev => prev - 1);
+      setMpPassTo(mpCurrentPlayer);
+      setMpNextPassIsBonusTurn(true);
+    } else {
+      setMpPassTo(nextPlayer);
+      setMpNextPassIsBonusTurn(false);
+    }
     setPhase('pass');
   }
 
   function handlePassContinue() {
     setMpCurrentPlayer(mpPassTo);
     setMpPassTo(null);
+    setMpNextPassIsBonusTurn(false);
     setPhase('mp');
   }
 
@@ -951,8 +991,10 @@ export default function App() {
       if (newIdentified.length === targetSlot.functions.length) {
         setMpWinner(isP1 ? 1 : 2);
       }
+      // correct guess — stay in turn, can guess again
     } else {
-      setMpMessage('Not quite.');
+      // wrong guess — end turn and skip next player
+      endMpTurn(true);
     }
   }
 
@@ -975,7 +1017,7 @@ export default function App() {
   }
 
   if (phase === 'pass') {
-    return <PassScreen toPlayer={mpPassTo} onContinue={handlePassContinue} />;
+    return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} onContinue={handlePassContinue} />;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -990,7 +1032,7 @@ export default function App() {
 
   if (phase === 'solo') {
     const diffLabel = DIFFICULTY[difficulty].label;
-    const modeLabel = gameMode === 'bot' ? 'VS BOT' : 'SOLO';
+    const modeLabel = 'SOLO';
 
     return (
       <div style={{
@@ -1241,8 +1283,8 @@ export default function App() {
           <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
             1v1 · <span style={{ color: '#00ff88' }}>{diffLabel.toUpperCase()}</span>
             {' · '}
-            <span style={{ color: '#66b3ff', fontWeight: 700 }}>
-              PLAYER {mpCurrentPlayer}'S TURN
+            <span style={{ color: mpBonusTurnsRemaining > 0 ? '#ffd700' : '#66b3ff', fontWeight: 700 }}>
+              PLAYER {mpCurrentPlayer}'S TURN{mpBonusTurnsRemaining > 0 ? ' ★ BONUS' : ''}
             </span>
           </div>
           <div style={{ fontSize: 10, color: '#334', marginTop: 4, letterSpacing: '0.08em' }}>
@@ -1303,8 +1345,32 @@ export default function App() {
           identifiedIds={identified}
         />
 
+        {mpShotFiredThisTurn && (
+          <button
+            onClick={() => endMpTurn(false)}
+            style={{
+              marginTop: 12,
+              padding: '10px 32px',
+              background: '#0d0d1a',
+              border: '2px solid #66b3ff',
+              borderRadius: 6,
+              color: '#66b3ff',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.1em',
+              boxShadow: '0 0 10px #66b3ff22',
+            }}
+          >
+            END TURN →
+          </button>
+        )}
+
         <div style={{ marginTop: 12, fontSize: 10, color: '#334', letterSpacing: '0.08em' }}>
-          Fire a shot to pass to the next player
+          {mpShotFiredThisTurn
+            ? 'Guess a function or end your turn'
+            : 'Fire a shot to reveal a square'}
         </div>
 
         <div style={{
