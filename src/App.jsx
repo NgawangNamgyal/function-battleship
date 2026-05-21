@@ -546,7 +546,6 @@ function Panel({ title, children, accent }) {
         color: accent || '#445',
         marginBottom: 10,
         fontWeight: 700,
-        textTransform: 'uppercase',
         textShadow: accent ? '0 0 8px #00ff8888' : 'none',
       }}>
         {title}
