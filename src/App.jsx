@@ -35,6 +35,7 @@ const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 const POWERS = [
   { id: 'doubleShot',   label: 'DOUBLE SHOT',   desc: 'Fire two shots this turn' },
   { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
+  { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
 ];
 
 const PARABOLA_PRESETS = [
@@ -303,10 +304,21 @@ function RoundTypeScreen({ difficulty, onSelect, onBack }) {
   );
 }
 
-function PassScreen({ toPlayer, bonusTurn, onContinue }) {
+function PassScreen({ toPlayer, bonusTurn, trapTriggered, onContinue }) {
   return (
     <div style={centeredPageStyle({ background: '#050508' })}>
-      {bonusTurn && (
+      {trapTriggered && (
+        <div style={{
+          fontSize: 13,
+          letterSpacing: '0.2em',
+          color: '#ff6b6b',
+          textTransform: 'uppercase',
+          textShadow: '0 0 8px #ff6b6b88',
+        }}>
+          TRAP CARD TRIGGERED — BONUS TURNS EARNED
+        </div>
+      )}
+      {bonusTurn && !trapTriggered && (
         <div style={{
           fontSize: 13,
           letterSpacing: '0.2em',
@@ -502,7 +514,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed }) {
+function PowersPanel({ powers, onUse, shotsAllowed, trapCardPending, parabolaShotPending }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -512,26 +524,30 @@ function PowersPanel({ powers, onUse, shotsAllowed }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {powers.map((power, i) => {
           const alreadyActive = power.id === 'doubleShot' && shotsAllowed >= 2;
-          const disabled = power.used || alreadyActive;
+          const isPending =
+            (power.id === 'trapCard' && trapCardPending) ||
+            (power.id === 'parabolaShot' && parabolaShotPending);
+          const disabled = power.used || alreadyActive || isPending;
+          let bg = '#0a0a2a', borderColor = '#2a2a6a', color = '#66b3ff';
+          if (power.used)         { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#334'; }
+          else if (alreadyActive) { bg = '#001a0d'; borderColor = '#00ff8844'; color = '#00ff88'; }
+          else if (isPending)     { bg = '#1a0808'; borderColor = '#ff6b6b88'; color = '#ff6b6b'; }
           return (
             <button
               key={i}
               onClick={() => !disabled && onUse(i)}
               disabled={disabled}
               style={{
-                padding: '8px 16px',
-                background: power.used ? '#0a0a1a' : alreadyActive ? '#001a0d' : '#0a0a2a',
-                border: `1px solid ${power.used ? '#1a1a3a' : alreadyActive ? '#00ff8844' : '#2a2a6a'}`,
-                borderRadius: 6,
-                color: power.used ? '#334' : alreadyActive ? '#00ff88' : '#66b3ff',
+                padding: '8px 16px', background: bg,
+                border: `1px solid ${borderColor}`, borderRadius: 6, color,
                 fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
                 letterSpacing: '0.08em', textDecoration: power.used ? 'line-through' : 'none',
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => { if (!disabled) e.currentTarget.style.borderColor = '#66b3ff'; }}
-              onMouseLeave={e => { if (!disabled) e.currentTarget.style.borderColor = '#2a2a6a'; }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.borderColor = borderColor; }}
             >
-              {power.used ? `✓ ${power.label}` : alreadyActive ? `⚡ ${power.label} ACTIVE` : `USE: ${power.label}`}
+              {power.used ? `✓ ${power.label}` : alreadyActive ? `⚡ ${power.label} ACTIVE` : isPending ? `↻ ${power.label} SELECTING...` : `USE: ${power.label}`}
             </button>
           );
         })}
@@ -914,6 +930,128 @@ function ParabolaScanResultCard({ result }) {
   );
 }
 
+function TrapCardPicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, ownGrid, existingTrap }) {
+  const [selectedCell, setSelectedCell] = useState(null);
+  const grids = [
+    { key: 'f', label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F', label: 'F(x)' },
+  ];
+  const canConfirm = selectedGrid !== null && selectedCell !== null;
+
+  function handleGridSelect(key) {
+    onSelectGrid(key);
+    setSelectedCell(null);
+  }
+
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#0d0808', border: '1px solid #ff6b6b44',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ff6b6b', marginBottom: 10, fontWeight: 700 }}>
+        TRAP CARD — SELECT GRID
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {grids.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => handleGridSelect(key)}
+            style={{
+              padding: '8px 16px',
+              background: selectedGrid === key ? '#2a0808' : '#0a0808',
+              border: `1px solid ${selectedGrid === key ? '#ff6b6b' : '#2a1a1a'}`,
+              borderRadius: 4,
+              color: selectedGrid === key ? '#ff6b6b' : '#668',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: '0.05em',
+              boxShadow: selectedGrid === key ? '0 0 8px #ff6b6b33' : 'none',
+              transition: 'all 0.15s',
+            }}
+          >{label}</button>
+        ))}
+      </div>
+
+      {selectedGrid && (
+        <>
+          <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ff6b6b', marginBottom: 10, fontWeight: 700 }}>
+            SELECT TRAP SQUARE (YOUR BOARD)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 52px)', gap: 4, marginBottom: 14 }}>
+            {ownGrid.map((rowArr, ri) =>
+              rowArr.map((cell, ci) => {
+                const alreadyFired = cell.shots[selectedGrid].fired;
+                const alreadyTrapped = existingTrap && !existingTrap.triggered &&
+                  existingTrap.grid === selectedGrid &&
+                  existingTrap.col === ci && existingTrap.row === ri;
+                const blocked = alreadyFired || alreadyTrapped;
+                const isSelected = selectedCell && selectedCell.col === ci && selectedCell.row === ri;
+                return (
+                  <button
+                    key={`${ri}-${ci}`}
+                    onClick={() => { if (!blocked) setSelectedCell({ col: ci, row: ri }); }}
+                    style={{
+                      width: 52, height: 52,
+                      background: isSelected ? '#2a0808' : blocked ? '#080808' : '#111124',
+                      border: `1px solid ${isSelected ? '#ff6b6b' : blocked ? '#111' : '#1e1e3a'}`,
+                      borderRadius: 4,
+                      cursor: blocked ? 'not-allowed' : 'crosshair',
+                      color: isSelected ? '#ff6b6b' : blocked ? '#222' : '#334',
+                      fontFamily: 'inherit', fontSize: 10,
+                      boxShadow: isSelected ? '0 0 8px #ff6b6b44' : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {alreadyTrapped ? '⚡' : alreadyFired ? '×' : isSelected ? '⚡' : `${ci - 2},${2 - ri}`}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          disabled={!canConfirm}
+          onClick={() => canConfirm && onConfirm(selectedGrid, selectedCell.col, selectedCell.row)}
+          style={{
+            padding: '10px 28px',
+            background: canConfirm ? '#2a0808' : '#0a0808',
+            border: `2px solid ${canConfirm ? '#ff6b6b' : '#2a1a1a'}`,
+            borderRadius: 6,
+            color: canConfirm ? '#ff6b6b' : '#334',
+            fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+            cursor: canConfirm ? 'pointer' : 'default',
+            letterSpacing: '0.1em',
+            boxShadow: canConfirm ? '0 0 12px #ff6b6b33' : 'none',
+            transition: 'all 0.15s',
+          }}
+        >
+          SET TRAP →
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '10px 20px',
+            background: 'none',
+            border: '1px solid #2a1a1a',
+            borderRadius: 6,
+            color: '#556',
+            fontFamily: 'inherit', fontSize: 13,
+            cursor: 'pointer',
+            letterSpacing: '0.08em',
+            transition: 'all 0.15s',
+          }}
+        >
+          CANCEL
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main App
 // ─────────────────────────────────────────────────────────────
@@ -963,6 +1101,16 @@ export default function App() {
   const [mpParabolaShotPresetIdx, setMpParabolaShotPresetIdx] = useState(null);
   const [p1ParabolaScanResult, setP1ParabolaScanResult] = useState(null);
   const [p2ParabolaScanResult, setP2ParabolaScanResult] = useState(null);
+
+  const [mpParabolaShotPendingIndex, setMpParabolaShotPendingIndex] = useState(null);
+
+  // ── Trap Card ──
+  const [mpTrapCardPending, setMpTrapCardPending] = useState(false);
+  const [mpTrapCardPendingIndex, setMpTrapCardPendingIndex] = useState(null);
+  const [mpTrapCardGrid, setMpTrapCardGrid] = useState(null);
+  const [p1TrapCard, setP1TrapCard] = useState(null); // { grid, col, row, triggered }
+  const [p2TrapCard, setP2TrapCard] = useState(null);
+  const [mpTrapTriggered, setMpTrapTriggered] = useState(false);
 
   // ── Navigation ──
 
@@ -1019,8 +1167,15 @@ export default function App() {
     setP1ParabolaScanResult(null);
     setP2ParabolaScanResult(null);
     setMpParabolaShotPending(false);
+    setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
+    setP1TrapCard(null);
+    setP2TrapCard(null);
+    setMpTrapTriggered(false);
     setPhase('power-draw');
   }
 
@@ -1075,17 +1230,47 @@ export default function App() {
     const setPowers = isP1 ? setP1Powers : setP2Powers;
     const power = powers[powerIndex];
     if (!power || power.used) return;
+
+    if (power.id === 'trapCard') {
+      setMpTrapCardPending(true);
+      setMpTrapCardPendingIndex(powerIndex);
+      setMpTrapCardGrid(null);
+      return;
+    }
+
+    if (power.id === 'parabolaShot') {
+      setMpParabolaShotPending(true);
+      setMpParabolaShotPendingIndex(powerIndex);
+      return;
+    }
+
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
     if (power.id === 'doubleShot') {
       setMpShotsAllowedThisTurn(2);
-    } else if (power.id === 'parabolaShot') {
-      setMpParabolaShotPending(true);
     }
+  }
+
+  function confirmTrapCard(grid, col, row) {
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    const setTrapCard = isP1 ? setP1TrapCard : setP2TrapCard;
+    setPowers(prev => prev.map((p, i) => i === mpTrapCardPendingIndex ? { ...p, used: true } : p));
+    setTrapCard({ grid, col, row, triggered: false });
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
+  }
+
+  function cancelTrapCard() {
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
   }
 
   function fireParabolaScan() {
     if (mpParabolaShotGridKey === null || mpParabolaShotPresetIdx === null) return;
     const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const preset = PARABOLA_PRESETS[mpParabolaShotPresetIdx];
     const hits = targetSlot.functions.map(({ fn, color }) => {
@@ -1096,7 +1281,10 @@ export default function App() {
     const result = { gridLabel: gridLabels[mpParabolaShotGridKey], parabolaLabel: preset.label, hits, presetFn: preset.fn };
     if (isP1) setP1ParabolaScanResult(result);
     else setP2ParabolaScanResult(result);
+    // Mark the power consumed only now that the scan actually fired
+    setPowers(prev => prev.map((p, i) => i === mpParabolaShotPendingIndex ? { ...p, used: true } : p));
     setMpParabolaShotPending(false);
+    setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
   }
@@ -1121,6 +1309,39 @@ export default function App() {
     );
 
     setTargetSlot({ ...targetSlot, grid: newGrid });
+
+    // Check if this shot hits the opponent's trap card
+    const opponentTrap = isP1 ? p2TrapCard : p1TrapCard;
+    const setOpponentTrap = isP1 ? setP2TrapCard : setP1TrapCard;
+    if (
+      opponentTrap &&
+      !opponentTrap.triggered &&
+      opponentTrap.grid === mpShotMode &&
+      opponentTrap.col === col &&
+      opponentTrap.row === row
+    ) {
+      setOpponentTrap(prev => ({ ...prev, triggered: true }));
+      // End current player's turn immediately; trap owner gets 2 bonus turns
+      const trapOwner = isP1 ? 2 : 1;
+      setMpShotsFiredThisTurn(0);
+      setMpShotsAllowedThisTurn(1);
+      setMpShotMode('f');
+      setMpMessage('');
+      setMpParabolaShotPending(false);
+      setMpParabolaShotPendingIndex(null);
+      setMpParabolaShotGridKey(null);
+      setMpParabolaShotPresetIdx(null);
+      setMpTrapCardPending(false);
+      setMpTrapCardPendingIndex(null);
+      setMpTrapCardGrid(null);
+      setMpTrapTriggered(true);
+      setMpBonusTurnsRemaining(1);
+      setMpPassTo(trapOwner);
+      setMpNextPassIsBonusTurn(false);
+      setPhase('pass');
+      return;
+    }
+
     setMpShotsFiredThisTurn(prev => prev + 1);
   }
 
@@ -1131,8 +1352,12 @@ export default function App() {
     setMpShotMode('f');
     setMpMessage('');
     setMpParabolaShotPending(false);
+    setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -1157,6 +1382,7 @@ export default function App() {
     setMpCurrentPlayer(mpPassTo);
     setMpPassTo(null);
     setMpNextPassIsBonusTurn(false);
+    setMpTrapTriggered(false);
     setPhase('mp');
   }
 
@@ -1227,8 +1453,15 @@ export default function App() {
     setP1ParabolaScanResult(null);
     setP2ParabolaScanResult(null);
     setMpParabolaShotPending(false);
+    setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
+    setP1TrapCard(null);
+    setP2TrapCard(null);
+    setMpTrapTriggered(false);
     setPhase('power-draw');
   }
 
@@ -1259,7 +1492,7 @@ export default function App() {
   }
 
   if (phase === 'pass') {
-    return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} onContinue={handlePassContinue} />;
+    return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} trapTriggered={mpTrapTriggered} onContinue={handlePassContinue} />;
   }
 
   if (phase === 'power-draw') {
@@ -1593,7 +1826,44 @@ export default function App() {
           powers={isP1 ? p1Powers : p2Powers}
           onUse={useMpPower}
           shotsAllowed={mpShotsAllowedThisTurn}
+          trapCardPending={mpTrapCardPending}
+          parabolaShotPending={mpParabolaShotPending}
         />
+
+        {(() => {
+          const myTrap = isP1 ? p1TrapCard : p2TrapCard;
+          if (myTrap && !myTrap.triggered) {
+            const gridLabel = myTrap.grid === 'f' ? 'f(x)' : myTrap.grid === 'df' ? "f′(x)" : 'F(x)';
+            return (
+              <div style={{
+                marginBottom: 8,
+                fontSize: 11,
+                color: '#ff6b6b',
+                letterSpacing: '0.1em',
+                padding: '6px 12px',
+                background: '#0d0808',
+                border: '1px solid #ff6b6b33',
+                borderRadius: 4,
+                width: '100%',
+                maxWidth: 560,
+              }}>
+                ⚡ TRAP SET · {gridLabel} · ({myTrap.col - 2}, {2 - myTrap.row}) — waiting for opponent
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {mpTrapCardPending && (
+          <TrapCardPicker
+            selectedGrid={mpTrapCardGrid}
+            onSelectGrid={setMpTrapCardGrid}
+            onConfirm={confirmTrapCard}
+            onCancel={cancelTrapCard}
+            ownGrid={isP1 ? p1Slot.grid : p2Slot.grid}
+            existingTrap={isP1 ? p1TrapCard : p2TrapCard}
+          />
+        )}
 
         {mpParabolaShotPending && (
           <ParabolaShotPicker
@@ -1607,7 +1877,7 @@ export default function App() {
 
         <ParabolaScanResultCard result={isP1 ? p1ParabolaScanResult : p2ParabolaScanResult} />
 
-        {mpShotsFiredThisTurn > 0 && (
+        {(mpParabolaShotPending || (mpShotsFiredThisTurn > 0 && mpShotsFiredThisTurn >= mpShotsAllowedThisTurn)) && (
           <button
             onClick={() => endMpTurn(false)}
             style={{
