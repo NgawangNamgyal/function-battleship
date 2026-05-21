@@ -559,66 +559,85 @@ function Panel({ title, children, accent }) {
 // Shared sub-components for game views
 // ─────────────────────────────────────────────────────────────
 
-function FunctionBankPanel({ difficulty, show, onToggle }) {
+function FunctionBankPanel({ difficulty, onGuess, identifiedIds, message, activeFunctions }) {
   return (
     <div style={{ marginBottom: 16, width: '100%', maxWidth: 560 }}>
-      <button
-        onClick={onToggle}
-        style={{
-          width: '100%',
-          padding: '9px 16px',
-          background: show ? '#001a0d' : '#111124',
-          border: `2px solid ${show ? '#00ff88' : '#2a2a4a'}`,
-          borderRadius: show ? '6px 6px 0 0' : 6,
-          color: show ? '#00ff88' : '#668',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: 'pointer',
-          letterSpacing: '0.1em',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: show ? '0 0 12px #00ff8833' : 'none',
-          transition: 'all 0.15s',
-        }}
-      >
-        <span>FUNCTION BANK</span>
-        <span style={{ fontSize: 11 }}>{show ? '▲ HIDE' : '▼ SHOW'}</span>
-      </button>
-      {show && (
-        <div style={{
-          background: '#0d0d1a',
-          border: '2px solid #00ff88',
-          borderTop: 'none',
-          borderRadius: '0 0 6px 6px',
-          padding: '12px 16px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-        }}>
-          {DIFFICULTY[difficulty].bank.map(id => {
-            const fn = FUNCTION_LIBRARY.find(f => f.id === id);
-            return (
-              <span
-                key={id}
-                style={{
-                  padding: '4px 10px',
-                  background: '#0a0a1a',
-                  border: '1px solid #2a2a4a',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  color: '#aac',
-                  fontFamily: 'inherit',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                {fn.label}
-              </span>
-            );
-          })}
-        </div>
-      )}
+      <div style={{
+        fontSize: 10,
+        letterSpacing: '0.2em',
+        color: '#445',
+        marginBottom: 8,
+        fontWeight: 700,
+      }}>
+        FUNCTION BANK — CLICK TO GUESS
+      </div>
+      <div style={{
+        background: '#0d0d1a',
+        border: '1px solid #1e1e3a',
+        borderRadius: 6,
+        padding: '12px 16px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 8,
+      }}>
+        {DIFFICULTY[difficulty].bank.map(id => {
+          const fn = FUNCTION_LIBRARY.find(f => f.id === id);
+          const identified = identifiedIds.includes(id);
+          return (
+            <button
+              key={id}
+              onClick={() => !identified && onGuess(id)}
+              disabled={identified}
+              style={{
+                padding: '6px 12px',
+                background: identified ? '#0a0a0a' : '#0a0a1a',
+                border: `1px solid ${identified ? '#1a1a1a' : '#2a2a4a'}`,
+                borderRadius: 4,
+                fontSize: 13,
+                color: identified ? '#333' : '#aac',
+                fontFamily: 'inherit',
+                letterSpacing: '0.05em',
+                cursor: identified ? 'default' : 'pointer',
+                textDecoration: identified ? 'line-through' : 'none',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!identified) e.currentTarget.style.borderColor = '#00ff88'; }}
+              onMouseLeave={e => { if (!identified) e.currentTarget.style.borderColor = '#2a2a4a'; }}
+            >
+              {identified ? `✓ ${fn.label}` : fn.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+        <span style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em' }}>REMAINING:</span>
+        {activeFunctions.map(({ fn, color }) => {
+          const found = identifiedIds.includes(fn.id);
+          return (
+            <span
+              key={fn.id}
+              style={{
+                color: found ? '#222' : color,
+                fontSize: 20,
+                textShadow: found ? 'none' : `0 0 8px ${color}`,
+                transition: 'color 0.3s',
+              }}
+            >
+              ●
+            </span>
+          );
+        })}
+        {message && (
+          <span style={{
+            marginLeft: 8,
+            color: message === 'Already found!' ? '#ffd700' : '#ff4444',
+            fontSize: 13,
+            letterSpacing: '0.05em',
+          }}>
+            {message}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -700,78 +719,6 @@ function ShotModeButtons({ shotMode, onChange }) {
   );
 }
 
-function GuessInput({ value, onChange, onSubmit, message, activeFunctions, identifiedIds }) {
-  return (
-    <>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-        <input
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onSubmit()}
-          placeholder="e.g. sin(x), x^2, e^x"
-          style={{
-            padding: '10px 14px',
-            background: '#0d0d1a',
-            border: '2px solid #2a2a4a',
-            borderRadius: 6,
-            color: '#e0e0e0',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            width: 220,
-            outline: 'none',
-          }}
-        />
-        <button
-          onClick={onSubmit}
-          style={{
-            padding: '10px 20px',
-            background: '#001a0d',
-            border: '2px solid #00ff88',
-            borderRadius: 6,
-            color: '#00ff88',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 0 10px #00ff8833',
-            transition: 'all 0.15s',
-          }}
-        >
-          SUBMIT
-        </button>
-      </div>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em' }}>REMAINING:</span>
-        {activeFunctions.map(({ fn, color }) => {
-          const found = identifiedIds.includes(fn.id);
-          return (
-            <span
-              key={fn.id}
-              style={{
-                color: found ? '#222' : color,
-                fontSize: 20,
-                textShadow: found ? 'none' : `0 0 8px ${color}`,
-                transition: 'color 0.3s',
-              }}
-            >
-              ●
-            </span>
-          );
-        })}
-      </div>
-      {message && (
-        <div style={{
-          marginTop: 8,
-          color: message === 'Already found!' ? '#ffd700' : '#ff4444',
-          fontSize: 13,
-          letterSpacing: '0.05em',
-        }}>
-          {message}
-        </div>
-      )}
-    </>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // Main App
@@ -782,13 +729,10 @@ export default function App() {
   const [phase, setPhase] = useState('difficulty');
   const [difficulty, setDifficulty] = useState(null);
   const [gameMode, setGameMode] = useState(null);
-  const [showFunctionBank, setShowFunctionBank] = useState(false);
-
   // ── Solo state ──
   const [activeFunctions, setActiveFunctions] = useState([]);
   const [grid, setGrid] = useState(initGrid);
   const [shotMode, setShotMode] = useState('f');
-  const [guess, setGuess] = useState('');
   const [won, setWon] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -802,7 +746,6 @@ export default function App() {
   const [mpCurrentPlayer, setMpCurrentPlayer] = useState(1);
   const [mpPassTo, setMpPassTo] = useState(null);
   const [mpShotMode, setMpShotMode] = useState('f');
-  const [mpGuess, setMpGuess] = useState('');
   const [mpMessage, setMpMessage] = useState('');
   const [mpWinner, setMpWinner] = useState(null); // 1 | 2
   const [mpShotFiredThisTurn, setMpShotFiredThisTurn] = useState(false);
@@ -818,13 +761,11 @@ export default function App() {
 
   function handleModeSelect(mode) {
     setGameMode(mode);
-    setShowFunctionBank(false);
 
     if (mode === 'solo') {
       setActiveFunctions(selectFunctions(difficulty));
       setGrid(initGrid());
       setShotMode('f');
-      setGuess('');
       setWon(false);
       setMessage('');
       setPhase('solo');
@@ -837,7 +778,6 @@ export default function App() {
       setMpCurrentPlayer(1);
       setMpPassTo(null);
       setMpShotMode('f');
-      setMpGuess('');
       setMpMessage('');
       setMpWinner(null);
       setMpShotFiredThisTurn(false);
@@ -873,27 +813,16 @@ export default function App() {
     ));
   }
 
-  function handleGuess() {
-    const normalized = guess.trim().toLowerCase().replace(/\s/g, '');
-    if (!normalized) return;
-
-    const alreadyGuessed = activeFunctions.find(({ fn, guessed }) => {
-      if (!guessed) return false;
-      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
-    });
+  function handleGuessById(id) {
+    const alreadyGuessed = activeFunctions.find(af => af.fn.id === id && af.guessed);
     if (alreadyGuessed) { setMessage('Already found!'); return; }
 
-    const match = activeFunctions.find(({ fn, guessed }) => {
-      if (guessed) return false;
-      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
-    });
-
+    const match = activeFunctions.find(af => af.fn.id === id && !af.guessed);
     if (match) {
       const updated = activeFunctions.map(af =>
-        af.fn.id === match.fn.id ? { ...af, guessed: true } : af
+        af.fn.id === id ? { ...af, guessed: true } : af
       );
       setActiveFunctions(updated);
-      setGuess('');
       setMessage('');
       if (updated.every(af => af.guessed)) setWon(true);
     } else {
@@ -930,7 +859,6 @@ export default function App() {
     const nextPlayer = mpCurrentPlayer === 1 ? 2 : 1;
     setMpShotFiredThisTurn(false);
     setMpShotMode('f');
-    setMpGuess('');
     setMpMessage('');
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
@@ -962,37 +890,23 @@ export default function App() {
     setPhase('mp');
   }
 
-  function mpHandleGuess() {
-    const normalized = mpGuess.trim().toLowerCase().replace(/\s/g, '');
-    if (!normalized) return;
-
+  function mpHandleGuessById(id) {
     const isP1 = mpCurrentPlayer === 1;
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const identified = isP1 ? mpP1Identified : mpP2Identified;
     const setIdentified = isP1 ? setMpP1Identified : setMpP2Identified;
 
-    const alreadyFound = targetSlot.functions.find(({ fn }) => {
-      if (!identified.includes(fn.id)) return false;
-      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
-    });
-    if (alreadyFound) { setMpMessage('Already found!'); return; }
+    if (identified.includes(id)) { setMpMessage('Already found!'); return; }
 
-    const match = targetSlot.functions.find(({ fn }) => {
-      if (identified.includes(fn.id)) return false;
-      return [fn.label, ...fn.aliases].map(s => s.toLowerCase().replace(/\s/g, '')).includes(normalized);
-    });
-
+    const match = targetSlot.functions.find(({ fn }) => fn.id === id);
     if (match) {
-      const newIdentified = [...identified, match.fn.id];
+      const newIdentified = [...identified, id];
       setIdentified(newIdentified);
-      setMpGuess('');
       setMpMessage('');
       if (newIdentified.length === targetSlot.functions.length) {
         setMpWinner(isP1 ? 1 : 2);
       }
-      // correct guess — stay in turn, can guess again
     } else {
-      // wrong guess — end turn and skip next player
       endMpTurn(true);
     }
   }
@@ -1095,20 +1009,13 @@ export default function App() {
 
         <ShotModeButtons shotMode={shotMode} onChange={setShotMode} />
 
-        <FunctionBankPanel
-          difficulty={difficulty}
-          show={showFunctionBank}
-          onToggle={() => setShowFunctionBank(p => !p)}
-        />
-
         {!won ? (
-          <GuessInput
-            value={guess}
-            onChange={v => { setGuess(v); setMessage(''); }}
-            onSubmit={handleGuess}
+          <FunctionBankPanel
+            difficulty={difficulty}
+            onGuess={handleGuessById}
+            identifiedIds={activeFunctions.filter(af => af.guessed).map(af => af.fn.id)}
             message={message}
             activeFunctions={activeFunctions}
-            identifiedIds={activeFunctions.filter(af => af.guessed).map(af => af.fn.id)}
           />
         ) : (
           <div style={{ textAlign: 'center' }}>
@@ -1331,17 +1238,10 @@ export default function App() {
 
         <FunctionBankPanel
           difficulty={difficulty}
-          show={showFunctionBank}
-          onToggle={() => setShowFunctionBank(p => !p)}
-        />
-
-        <GuessInput
-          value={mpGuess}
-          onChange={v => { setMpGuess(v); setMpMessage(''); }}
-          onSubmit={mpHandleGuess}
+          onGuess={mpHandleGuessById}
+          identifiedIds={identified}
           message={mpMessage}
           activeFunctions={targetSlot.functions}
-          identifiedIds={identified}
         />
 
         {mpShotFiredThisTurn && (
