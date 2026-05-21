@@ -32,6 +32,14 @@ const DIFFICULTY = {
 
 const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 
+const POWERS = [
+  { id: 'doubleShot', label: 'DOUBLE SHOT', desc: 'Fire two shots this turn' },
+];
+
+function rollPowers(count) {
+  return Array.from({ length: count }, () => ({ ...POWERS[Math.floor(Math.random() * POWERS.length)], used: false }));
+}
+
 function selectFunctions(difficulty) {
   const { bank, numFunctions, nastyGuarantee } = DIFFICULTY[difficulty];
   const selected = [];
@@ -306,6 +314,63 @@ function PassScreen({ toPlayer, bonusTurn, onContinue }) {
   );
 }
 
+function PowerDrawScreen({ round, roundType, p1Powers, p2Powers, coinFlipWinner, onBegin }) {
+  const titleText = roundType === 'lightning' ? 'POWER-UP DRAW' : `ROUND ${round} · POWER-UP DRAW`;
+  return (
+    <div style={centeredPageStyle()}>
+      <div style={{ fontSize: 13, letterSpacing: '0.2em', color: '#557' }}>{titleText}</div>
+
+      {coinFlipWinner && (
+        <div style={{
+          fontSize: 12, color: '#ffd700', letterSpacing: '0.15em', textAlign: 'center',
+          textShadow: '0 0 8px #ffd70088', background: '#1a1500',
+          border: '1px solid #ffd70044', borderRadius: 6, padding: '8px 20px',
+        }}>
+          COIN FLIP — PLAYER {coinFlipWinner} GAINS BONUS POWER
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {[1, 2].map(player => {
+          const powers = player === 1 ? p1Powers : p2Powers;
+          return (
+            <div key={player} style={{
+              background: '#0d0d1a', border: '1px solid #1e1e3a',
+              borderRadius: 8, padding: '16px 24px', minWidth: 160, textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.2em', marginBottom: 12 }}>
+                PLAYER {player}
+              </div>
+              {powers.map((power, i) => (
+                <div key={i} style={{
+                  background: '#111124', border: '1px solid #2a2a6a',
+                  borderRadius: 4, padding: '8px 12px', marginBottom: 6,
+                  color: '#66b3ff', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+                }}>
+                  {power.label}
+                  <div style={{ fontSize: 10, color: '#445', marginTop: 2, fontWeight: 400 }}>{power.desc}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={onBegin}
+        style={{
+          marginTop: 8, padding: '14px 48px', background: '#001a0d',
+          border: '2px solid #00ff88', borderRadius: 8, color: '#00ff88',
+          fontFamily: 'inherit', fontSize: 16, fontWeight: 700, cursor: 'pointer',
+          letterSpacing: '0.12em', boxShadow: '0 0 24px #00ff8844',
+        }}
+      >
+        BEGIN ROUND →
+      </button>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Shared UI primitives
 // ─────────────────────────────────────────────────────────────
@@ -395,6 +460,44 @@ function BackButton({ label, onClick }) {
     >
       {label}
     </button>
+  );
+}
+
+function PowersPanel({ powers, onUse, shotsAllowed }) {
+  if (!powers || powers.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#66b3ff', marginBottom: 8, fontWeight: 700 }}>
+        YOUR POWERS
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {powers.map((power, i) => {
+          const alreadyActive = power.id === 'doubleShot' && shotsAllowed >= 2;
+          const disabled = power.used || alreadyActive;
+          return (
+            <button
+              key={i}
+              onClick={() => !disabled && onUse(i)}
+              disabled={disabled}
+              style={{
+                padding: '8px 16px',
+                background: power.used ? '#0a0a1a' : alreadyActive ? '#001a0d' : '#0a0a2a',
+                border: `1px solid ${power.used ? '#1a1a3a' : alreadyActive ? '#00ff8844' : '#2a2a6a'}`,
+                borderRadius: 6,
+                color: power.used ? '#334' : alreadyActive ? '#00ff88' : '#66b3ff',
+                fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
+                letterSpacing: '0.08em', textDecoration: power.used ? 'line-through' : 'none',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.borderColor = '#66b3ff'; }}
+              onMouseLeave={e => { if (!disabled) e.currentTarget.style.borderColor = '#2a2a6a'; }}
+            >
+              {power.used ? `✓ ${power.label}` : alreadyActive ? `⚡ ${power.label} ACTIVE` : `USE: ${power.label}`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -614,9 +717,15 @@ export default function App() {
   const [mpP2WrongGuesses, setMpP2WrongGuesses] = useState([]);
   const [mpWinner, setMpWinner] = useState(null); // round winner: 1 | 2
   const [mpMatchWinner, setMpMatchWinner] = useState(null); // match winner: 1 | 2 (normal mode only)
-  const [mpShotFiredThisTurn, setMpShotFiredThisTurn] = useState(false);
+  const [mpShotsFiredThisTurn, setMpShotsFiredThisTurn] = useState(0);
+  const [mpShotsAllowedThisTurn, setMpShotsAllowedThisTurn] = useState(1);
   const [mpBonusTurnsRemaining, setMpBonusTurnsRemaining] = useState(0);
   const [mpNextPassIsBonusTurn, setMpNextPassIsBonusTurn] = useState(false);
+
+  // ── Powers ──
+  const [p1Powers, setP1Powers] = useState([]);
+  const [p2Powers, setP2Powers] = useState([]);
+  const [mpCoinFlipWinner, setMpCoinFlipWinner] = useState(null);
 
   // ── Navigation ──
 
@@ -645,10 +754,16 @@ export default function App() {
     setMpCurrentRound(1);
     setMpP1RoundWins(0);
     setMpP2RoundWins(0);
-    startMpRound();
+    startMpRound(1);
   }
 
-  function startMpRound() {
+  function startMpRound(roundNum) {
+    const newP1Powers = rollPowers(1);
+    const newP2Powers = rollPowers(1);
+    setP1Powers(newP1Powers);
+    setP2Powers(newP2Powers);
+    setMpCoinFlipWinner(null);
+
     setP1Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
     setP2Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
     setMpP1Identified([]);
@@ -658,12 +773,13 @@ export default function App() {
     setMpShotMode('f');
     setMpMessage('');
     setMpWinner(null);
-    setMpShotFiredThisTurn(false);
+    setMpShotsFiredThisTurn(0);
+    setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
     setMpP1WrongGuesses([]);
     setMpP2WrongGuesses([]);
-    setPhase('mp');
+    setPhase('power-draw');
   }
 
   function goHome() {
@@ -711,8 +827,20 @@ export default function App() {
 
   // ── 1v1 game logic ──
 
+  function useMpPower(powerIndex) {
+    const isP1 = mpCurrentPlayer === 1;
+    const powers = isP1 ? p1Powers : p2Powers;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    const power = powers[powerIndex];
+    if (!power || power.used) return;
+    setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
+    if (power.id === 'doubleShot') {
+      setMpShotsAllowedThisTurn(2);
+    }
+  }
+
   function mpFireShot(col, row) {
-    if (mpWinner || mpShotFiredThisTurn) return;
+    if (mpWinner || mpShotsFiredThisTurn >= mpShotsAllowedThisTurn) return;
     const isP1 = mpCurrentPlayer === 1;
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const setTargetSlot = isP1 ? setP2Slot : setP1Slot;
@@ -731,12 +859,13 @@ export default function App() {
     );
 
     setTargetSlot({ ...targetSlot, grid: newGrid });
-    setMpShotFiredThisTurn(true);
+    setMpShotsFiredThisTurn(prev => prev + 1);
   }
 
   function endMpTurn(wrongGuess = false) {
     const nextPlayer = mpCurrentPlayer === 1 ? 2 : 1;
-    setMpShotFiredThisTurn(false);
+    setMpShotsFiredThisTurn(0);
+    setMpShotsAllowedThisTurn(1);
     setMpShotMode('f');
     setMpMessage('');
 
@@ -802,7 +931,19 @@ export default function App() {
   }
 
   function startNextRound() {
-    setMpCurrentRound(prev => prev + 1);
+    const newRound = mpCurrentRound + 1;
+    setMpCurrentRound(newRound);
+
+    // Round 2+: both players start fresh with 1 power; coin flip gives the winner 1 extra
+    let newP1Powers = rollPowers(1);
+    let newP2Powers = rollPowers(1);
+    const coinWinner = Math.random() < 0.5 ? 1 : 2;
+    if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1)];
+    else newP2Powers = [...newP2Powers, ...rollPowers(1)];
+    setP1Powers(newP1Powers);
+    setP2Powers(newP2Powers);
+    setMpCoinFlipWinner(coinWinner);
+
     setP1Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
     setP2Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
     setMpP1Identified([]);
@@ -812,12 +953,13 @@ export default function App() {
     setMpShotMode('f');
     setMpMessage('');
     setMpWinner(null);
-    setMpShotFiredThisTurn(false);
+    setMpShotsFiredThisTurn(0);
+    setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
     setMpP1WrongGuesses([]);
     setMpP2WrongGuesses([]);
-    setPhase('mp');
+    setPhase('power-draw');
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -848,6 +990,19 @@ export default function App() {
 
   if (phase === 'pass') {
     return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} onContinue={handlePassContinue} />;
+  }
+
+  if (phase === 'power-draw') {
+    return (
+      <PowerDrawScreen
+        round={mpCurrentRound}
+        roundType={roundType}
+        p1Powers={p1Powers}
+        p2Powers={p2Powers}
+        coinFlipWinner={mpCoinFlipWinner}
+        onBegin={() => setPhase('mp')}
+      />
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1164,7 +1319,13 @@ export default function App() {
           activeFunctions={targetSlot.functions}
         />
 
-        {mpShotFiredThisTurn && (
+        <PowersPanel
+          powers={isP1 ? p1Powers : p2Powers}
+          onUse={useMpPower}
+          shotsAllowed={mpShotsAllowedThisTurn}
+        />
+
+        {mpShotsFiredThisTurn > 0 && (
           <button
             onClick={() => endMpTurn(false)}
             style={{
@@ -1187,7 +1348,11 @@ export default function App() {
         )}
 
         <div style={{ marginTop: 12, fontSize: 10, color: '#334', letterSpacing: '0.08em' }}>
-          {mpShotFiredThisTurn ? 'Guess a function or end your turn' : 'Fire a shot to reveal a square'}
+          {mpShotsFiredThisTurn === 0
+            ? 'Fire a shot to reveal a square'
+            : mpShotsFiredThisTurn < mpShotsAllowedThisTurn
+              ? `Fire second shot · or guess / end turn`
+              : 'Guess a function or end your turn'}
         </div>
 
         <div style={{ marginTop: 20, fontSize: 11, color: '#445', display: 'flex', gap: 20, letterSpacing: '0.05em' }}>
