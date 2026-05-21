@@ -33,7 +33,16 @@ const DIFFICULTY = {
 const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 
 const POWERS = [
-  { id: 'doubleShot', label: 'DOUBLE SHOT', desc: 'Fire two shots this turn' },
+  { id: 'doubleShot',   label: 'DOUBLE SHOT',   desc: 'Fire two shots this turn' },
+  { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
+];
+
+const PARABOLA_PRESETS = [
+  { label: 'y = x²',      fn: x => x ** 2 },
+  { label: 'y = x² − 1',  fn: x => x ** 2 - 1 },
+  { label: 'y = x² − 2',  fn: x => x ** 2 - 2 },
+  { label: 'y = −x²',     fn: x => -(x ** 2) },
+  { label: 'y = −x² + 2', fn: x => -(x ** 2) + 2 },
 ];
 
 function rollPowers(count) {
@@ -89,6 +98,36 @@ function doesFunctionPassThrough(fn, col, row) {
     } catch { continue; }
   }
   return false;
+}
+
+function findIntersectionPoints(gFn, parabolaFn) {
+  const steps = 500;
+  const points = [];
+  let prevDiff = null;
+  let prevX = null;
+  for (let i = 0; i <= steps; i++) {
+    const x = X_MIN + (i / steps) * (X_MAX - X_MIN);
+    let gVal;
+    try { gVal = gFn(x); } catch { prevDiff = null; prevX = x; continue; }
+    if (!isFinite(gVal) || isNaN(gVal)) { prevDiff = null; prevX = x; continue; }
+    const diff = gVal - parabolaFn(x);
+    if (Math.abs(diff) < 0.05) {
+      const py = parabolaFn(x);
+      if (isFinite(py) && py >= Y_MIN && py <= Y_MAX) points.push({ x, y: py });
+    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null) {
+      const midX = (prevX + x) / 2;
+      const midY = parabolaFn(midX);
+      if (isFinite(midY) && midY >= Y_MIN && midY <= Y_MAX) points.push({ x: midX, y: midY });
+    }
+    prevDiff = diff;
+    prevX = x;
+  }
+  // deduplicate points within 0.15 of each other
+  const deduped = [];
+  for (const p of points) {
+    if (!deduped.some(q => Math.abs(q.x - p.x) < 0.15 && Math.abs(q.y - p.y) < 0.15)) deduped.push(p);
+  }
+  return deduped;
 }
 
 function drawCell(canvas, shotType, col, row, cellShots, activeFunctions) {
@@ -682,6 +721,199 @@ function ShotModeButtons({ shotMode, onChange }) {
   );
 }
 
+function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire }) {
+  const grids = [
+    { key: 'f',  label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F',  label: 'F(x)' },
+  ];
+  const canFire = selectedGrid !== null && selectedPreset !== null;
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#0d0d1a', border: '1px solid #ffd70044',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ffd700', marginBottom: 10, fontWeight: 700 }}>
+        PARABOLA SHOT — SELECT GRID
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {grids.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => onSelectGrid(key)}
+            style={{
+              padding: '8px 16px',
+              background: selectedGrid === key ? '#1a1400' : '#0a0a1a',
+              border: `1px solid ${selectedGrid === key ? '#ffd700' : '#2a2a4a'}`,
+              borderRadius: 4,
+              color: selectedGrid === key ? '#ffd700' : '#668',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: '0.05em',
+              boxShadow: selectedGrid === key ? '0 0 8px #ffd70033' : 'none',
+              transition: 'all 0.15s',
+            }}
+          >{label}</button>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ffd700', marginBottom: 10, fontWeight: 700 }}>
+        SELECT PARABOLA
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {PARABOLA_PRESETS.map((p, i) => (
+          <button
+            key={i}
+            onClick={() => onSelectPreset(i)}
+            style={{
+              padding: '6px 12px',
+              background: selectedPreset === i ? '#1a1400' : '#0a0a1a',
+              border: `1px solid ${selectedPreset === i ? '#ffd700' : '#2a2a4a'}`,
+              borderRadius: 4,
+              color: selectedPreset === i ? '#ffd700' : '#668',
+              fontFamily: 'inherit', fontSize: 13, cursor: 'pointer',
+              letterSpacing: '0.04em',
+              boxShadow: selectedPreset === i ? '0 0 8px #ffd70033' : 'none',
+              transition: 'all 0.15s',
+            }}
+          >{p.label}</button>
+        ))}
+      </div>
+      <button
+        disabled={!canFire}
+        onClick={onFire}
+        style={{
+          padding: '10px 28px',
+          background: canFire ? '#1a1400' : '#0a0a1a',
+          border: `2px solid ${canFire ? '#ffd700' : '#2a2a3a'}`,
+          borderRadius: 6,
+          color: canFire ? '#ffd700' : '#334',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+          cursor: canFire ? 'pointer' : 'default',
+          letterSpacing: '0.1em',
+          boxShadow: canFire ? '0 0 12px #ffd70033' : 'none',
+          transition: 'all 0.15s',
+        }}
+      >
+        FIRE PARABOLA SCAN →
+      </button>
+    </div>
+  );
+}
+
+function ParabolaScanGraph({ presetFn, hits }) {
+  const canvasRef = useRef(null);
+  const W = 260, H = 260;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, W, H);
+    const toPixelX = x => ((x - X_MIN) / (X_MAX - X_MIN)) * W;
+    const toPixelY = y => H - ((y - Y_MIN) / (Y_MAX - Y_MIN)) * H;
+
+    // grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
+    for (let v = -2; v <= 2; v++) {
+      ctx.beginPath(); ctx.moveTo(toPixelX(v), 0); ctx.lineTo(toPixelX(v), H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, toPixelY(v)); ctx.lineTo(W, toPixelY(v)); ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, toPixelY(0)); ctx.lineTo(W, toPixelY(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(toPixelX(0), 0); ctx.lineTo(toPixelX(0), H); ctx.stroke();
+
+    // parabola curve
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i <= 300; i++) {
+      const x = X_MIN + (i / 300) * (X_MAX - X_MIN);
+      const y = presetFn(x);
+      if (!isFinite(y) || y < Y_MIN - 0.5 || y > Y_MAX + 0.5) { started = false; continue; }
+      const px = toPixelX(x), py = toPixelY(y);
+      if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // intersection dots
+    hits.forEach(({ color, points }) => {
+      points.forEach(({ x, y }) => {
+        const px = toPixelX(x), py = toPixelY(y);
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+    ctx.shadowBlur = 0;
+  }, [presetFn, hits]);
+
+  return (
+    <canvas ref={canvasRef} width={W} height={H}
+      style={{ border: '1px solid #ffd70022', borderRadius: 4, display: 'block' }}
+    />
+  );
+}
+
+function ParabolaScanResultCard({ result }) {
+  const [open, setOpen] = useState(true);
+  if (!result) return null;
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#0d0d1a', border: '1px solid #ffd70044',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          fontSize: 10, letterSpacing: '0.2em', color: '#ffd700',
+          marginBottom: open ? 10 : 0, fontWeight: 700,
+          cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          userSelect: 'none',
+        }}
+      >
+        <span>PARABOLA SCAN · {result.gridLabel} · {result.parabolaLabel}</span>
+        <span style={{ fontSize: 12, opacity: 0.7 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <ParabolaScanGraph presetFn={result.presetFn} hits={result.hits} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+            {result.hits.map(({ color, points }, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  color: points.length > 0 ? color : '#556',
+                  fontSize: 20,
+                  textShadow: points.length > 0 ? `0 0 8px ${color}` : 'none',
+                }}>●</span>
+                <span style={{ fontSize: 11, color: points.length > 0 ? color : '#778', letterSpacing: '0.08em' }}>
+                  {points.length > 0
+                    ? `${points.length} INTERSECTION${points.length > 1 ? 'S' : ''}`
+                    : 'NO INTERSECTION'}
+                </span>
+              </div>
+            ))}
+            <div style={{ fontSize: 9, color: '#445', letterSpacing: '0.08em', marginTop: 4, maxWidth: 180 }}>
+              Colored dots show where each function crosses the parabola
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main App
 // ─────────────────────────────────────────────────────────────
@@ -726,6 +958,11 @@ export default function App() {
   const [p1Powers, setP1Powers] = useState([]);
   const [p2Powers, setP2Powers] = useState([]);
   const [mpCoinFlipWinner, setMpCoinFlipWinner] = useState(null);
+  const [mpParabolaShotPending, setMpParabolaShotPending] = useState(false);
+  const [mpParabolaShotGridKey, setMpParabolaShotGridKey] = useState(null);
+  const [mpParabolaShotPresetIdx, setMpParabolaShotPresetIdx] = useState(null);
+  const [p1ParabolaScanResult, setP1ParabolaScanResult] = useState(null);
+  const [p2ParabolaScanResult, setP2ParabolaScanResult] = useState(null);
 
   // ── Navigation ──
 
@@ -779,6 +1016,11 @@ export default function App() {
     setMpNextPassIsBonusTurn(false);
     setMpP1WrongGuesses([]);
     setMpP2WrongGuesses([]);
+    setP1ParabolaScanResult(null);
+    setP2ParabolaScanResult(null);
+    setMpParabolaShotPending(false);
+    setMpParabolaShotGridKey(null);
+    setMpParabolaShotPresetIdx(null);
     setPhase('power-draw');
   }
 
@@ -836,7 +1078,27 @@ export default function App() {
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
     if (power.id === 'doubleShot') {
       setMpShotsAllowedThisTurn(2);
+    } else if (power.id === 'parabolaShot') {
+      setMpParabolaShotPending(true);
     }
+  }
+
+  function fireParabolaScan() {
+    if (mpParabolaShotGridKey === null || mpParabolaShotPresetIdx === null) return;
+    const isP1 = mpCurrentPlayer === 1;
+    const targetSlot = isP1 ? p2Slot : p1Slot;
+    const preset = PARABOLA_PRESETS[mpParabolaShotPresetIdx];
+    const hits = targetSlot.functions.map(({ fn, color }) => {
+      const gFn = mpParabolaShotGridKey === 'f' ? fn.f : mpParabolaShotGridKey === 'df' ? fn.df : fn.F;
+      return { color, points: findIntersectionPoints(gFn, preset.fn) };
+    });
+    const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+    const result = { gridLabel: gridLabels[mpParabolaShotGridKey], parabolaLabel: preset.label, hits, presetFn: preset.fn };
+    if (isP1) setP1ParabolaScanResult(result);
+    else setP2ParabolaScanResult(result);
+    setMpParabolaShotPending(false);
+    setMpParabolaShotGridKey(null);
+    setMpParabolaShotPresetIdx(null);
   }
 
   function mpFireShot(col, row) {
@@ -868,6 +1130,9 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpShotMode('f');
     setMpMessage('');
+    setMpParabolaShotPending(false);
+    setMpParabolaShotGridKey(null);
+    setMpParabolaShotPresetIdx(null);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -959,6 +1224,11 @@ export default function App() {
     setMpNextPassIsBonusTurn(false);
     setMpP1WrongGuesses([]);
     setMpP2WrongGuesses([]);
+    setP1ParabolaScanResult(null);
+    setP2ParabolaScanResult(null);
+    setMpParabolaShotPending(false);
+    setMpParabolaShotGridKey(null);
+    setMpParabolaShotPresetIdx(null);
     setPhase('power-draw');
   }
 
@@ -1324,6 +1594,18 @@ export default function App() {
           onUse={useMpPower}
           shotsAllowed={mpShotsAllowedThisTurn}
         />
+
+        {mpParabolaShotPending && (
+          <ParabolaShotPicker
+            selectedGrid={mpParabolaShotGridKey}
+            onSelectGrid={setMpParabolaShotGridKey}
+            selectedPreset={mpParabolaShotPresetIdx}
+            onSelectPreset={setMpParabolaShotPresetIdx}
+            onFire={fireParabolaScan}
+          />
+        )}
+
+        <ParabolaScanResultCard result={isP1 ? p1ParabolaScanResult : p2ParabolaScanResult} />
 
         {mpShotsFiredThisTurn > 0 && (
           <button
