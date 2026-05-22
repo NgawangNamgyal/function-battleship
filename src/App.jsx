@@ -36,6 +36,7 @@ const POWERS = [
   { id: 'doubleShot',   label: 'DOUBLE SHOT',   desc: 'Fire two shots this turn' },
   { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
   { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
+  { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
 ];
 
 const PARABOLA_PRESETS = [
@@ -514,7 +515,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, trapCardPending, parabolaShotPending }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, heatCheckActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -524,14 +525,20 @@ function PowersPanel({ powers, onUse, shotsAllowed, trapCardPending, parabolaSho
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {powers.map((power, i) => {
           const alreadyActive = power.id === 'doubleShot' && shotsAllowed >= 2;
+          const isHeatCheckOn = power.id === 'heatCheck' && heatCheckActive;
           const isPending =
             (power.id === 'trapCard' && trapCardPending) ||
             (power.id === 'parabolaShot' && parabolaShotPending);
-          const disabled = power.used || alreadyActive || isPending;
+          const cantActivate =
+            (power.id === 'heatCheck' && (shotsFired > 0 || shotsAllowed >= 2)) ||
+            (power.id === 'doubleShot' && heatCheckActive);
+          const disabled = power.used || alreadyActive || isPending || cantActivate;
           let bg = '#0a0a2a', borderColor = '#2a2a6a', color = '#66b3ff';
-          if (power.used)         { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#334'; }
+          if (isHeatCheckOn)      { bg = '#1a0a00'; borderColor = '#ff880088'; color = '#ff8800'; }
+          else if (power.used)    { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#334'; }
           else if (alreadyActive) { bg = '#001a0d'; borderColor = '#00ff8844'; color = '#00ff88'; }
           else if (isPending)     { bg = '#1a0808'; borderColor = '#ff6b6b88'; color = '#ff6b6b'; }
+          else if (cantActivate)  { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#445'; }
           return (
             <button
               key={i}
@@ -541,13 +548,21 @@ function PowersPanel({ powers, onUse, shotsAllowed, trapCardPending, parabolaSho
                 padding: '8px 16px', background: bg,
                 border: `1px solid ${borderColor}`, borderRadius: 6, color,
                 fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
-                letterSpacing: '0.08em', textDecoration: power.used ? 'line-through' : 'none',
+                letterSpacing: '0.08em', textDecoration: (power.used && !isHeatCheckOn) ? 'line-through' : 'none',
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => { if (!disabled) e.currentTarget.style.borderColor = '#66b3ff'; }}
               onMouseLeave={e => { if (!disabled) e.currentTarget.style.borderColor = borderColor; }}
             >
-              {power.used ? `✓ ${power.label}` : alreadyActive ? `⚡ ${power.label} ACTIVE` : isPending ? `↻ ${power.label} SELECTING...` : `USE: ${power.label}`}
+              {isHeatCheckOn
+                ? `🔥 ${power.label} ACTIVE`
+                : power.used
+                  ? `✓ ${power.label}`
+                  : alreadyActive
+                    ? `⚡ ${power.label} ACTIVE`
+                    : isPending
+                      ? `↻ ${power.label} SELECTING...`
+                      : `USE: ${power.label}`}
             </button>
           );
         })}
@@ -1104,6 +1119,10 @@ export default function App() {
 
   const [mpParabolaShotPendingIndex, setMpParabolaShotPendingIndex] = useState(null);
 
+  // ── Heat Check ──
+  const [mpHeatCheckActive, setMpHeatCheckActive] = useState(false);
+  const [mpHeatCheckMissed, setMpHeatCheckMissed] = useState(false);
+
   // ── Trap Card ──
   const [mpTrapCardPending, setMpTrapCardPending] = useState(false);
   const [mpTrapCardPendingIndex, setMpTrapCardPendingIndex] = useState(null);
@@ -1176,6 +1195,8 @@ export default function App() {
     setP1TrapCard(null);
     setP2TrapCard(null);
     setMpTrapTriggered(false);
+    setMpHeatCheckActive(false);
+    setMpHeatCheckMissed(false);
     setPhase('power-draw');
   }
 
@@ -1243,6 +1264,15 @@ export default function App() {
       setMpParabolaShotPendingIndex(powerIndex);
       return;
     }
+
+    if (power.id === 'heatCheck') {
+      if (mpShotsFiredThisTurn > 0 || mpShotsAllowedThisTurn >= 2) return;
+      setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
+      setMpHeatCheckActive(true);
+      return;
+    }
+
+    if (power.id === 'doubleShot' && mpHeatCheckActive) return;
 
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
     if (power.id === 'doubleShot') {
@@ -1334,6 +1364,8 @@ export default function App() {
       setMpTrapCardPending(false);
       setMpTrapCardPendingIndex(null);
       setMpTrapCardGrid(null);
+      setMpHeatCheckActive(false);
+      setMpHeatCheckMissed(false);
       setMpTrapTriggered(true);
       setMpBonusTurnsRemaining(1);
       setMpPassTo(trapOwner);
@@ -1342,7 +1374,16 @@ export default function App() {
       return;
     }
 
-    setMpShotsFiredThisTurn(prev => prev + 1);
+    const newShotCount = mpShotsFiredThisTurn + 1;
+    setMpShotsFiredThisTurn(newShotCount);
+
+    if (mpHeatCheckActive) {
+      if (hits.length === 0) {
+        setMpHeatCheckMissed(true);
+      } else if (newShotCount < 3) {
+        setMpShotsAllowedThisTurn(prev => prev + 1);
+      }
+    }
   }
 
   function endMpTurn(wrongGuess = false) {
@@ -1358,6 +1399,8 @@ export default function App() {
     setMpTrapCardPending(false);
     setMpTrapCardPendingIndex(null);
     setMpTrapCardGrid(null);
+    setMpHeatCheckActive(false);
+    setMpHeatCheckMissed(false);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -1462,6 +1505,8 @@ export default function App() {
     setP1TrapCard(null);
     setP2TrapCard(null);
     setMpTrapTriggered(false);
+    setMpHeatCheckActive(false);
+    setMpHeatCheckMissed(false);
     setPhase('power-draw');
   }
 
@@ -1826,8 +1871,10 @@ export default function App() {
           powers={isP1 ? p1Powers : p2Powers}
           onUse={useMpPower}
           shotsAllowed={mpShotsAllowedThisTurn}
+          shotsFired={mpShotsFiredThisTurn}
           trapCardPending={mpTrapCardPending}
           parabolaShotPending={mpParabolaShotPending}
+          heatCheckActive={mpHeatCheckActive}
         />
 
         {(() => {
@@ -1877,7 +1924,7 @@ export default function App() {
 
         <ParabolaScanResultCard result={isP1 ? p1ParabolaScanResult : p2ParabolaScanResult} />
 
-        {(mpParabolaShotPending || (mpShotsFiredThisTurn > 0 && mpShotsFiredThisTurn >= mpShotsAllowedThisTurn)) && (
+        {(mpParabolaShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
           <button
             onClick={() => endMpTurn(false)}
             style={{
@@ -1902,9 +1949,13 @@ export default function App() {
         <div style={{ marginTop: 12, fontSize: 10, color: '#334', letterSpacing: '0.08em' }}>
           {mpShotsFiredThisTurn === 0
             ? 'Fire a shot to reveal a square'
-            : mpShotsFiredThisTurn < mpShotsAllowedThisTurn
-              ? `Fire second shot · or guess / end turn`
-              : 'Guess a function or end your turn'}
+            : mpHeatCheckActive && mpHeatCheckMissed
+              ? 'Missed — no more shots · guess or end your turn'
+              : mpHeatCheckActive
+                ? `HIT · keep firing or guess · ${mpShotsFiredThisTurn}/3 shots`
+                : mpShotsFiredThisTurn < mpShotsAllowedThisTurn
+                  ? `Fire second shot · or guess / end turn`
+                  : 'Guess a function or end your turn'}
         </div>
 
         <div style={{ marginTop: 20, fontSize: 11, color: '#445', display: 'flex', gap: 20, letterSpacing: '0.05em' }}>
