@@ -263,8 +263,9 @@ function DifficultyScreen({ onSelect }) {
 
 function ModeSelectScreen({ difficulty, onSelect, onBack }) {
   const modes = [
-    { key: 'solo', label: 'SOLO', desc: 'Identify the hidden functions' },
-    { key: '1v1',  label: '1v1',  desc: 'Pass-and-play against a friend' },
+    { key: 'solo',      label: 'SOLO',       desc: 'Identify the hidden functions' },
+    { key: '1v1',       label: '1v1',        desc: 'Pass-and-play against a friend' },
+    { key: 'powertest', label: 'POWER TEST', desc: 'Pick any powers and test them' },
   ];
   return (
     <div style={centeredPageStyle()}>
@@ -419,6 +420,176 @@ function PowerDrawScreen({ round, roundType, p1Powers, p2Powers, coinFlipWinner,
       >
         BEGIN ROUND →
       </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Power Test Setup Screen
+// ─────────────────────────────────────────────────────────────
+
+function PowerTestSetupScreen({ difficulty, onStart, onBack }) {
+  const MAX_POWER_COUNT = 3;
+  const MAX_FN_COUNT = 4;
+
+  const initCounts = () => Object.fromEntries(POWERS.map(p => [p.id, 0]));
+  const [p1PowerCounts, setP1PowerCounts] = useState(initCounts);
+  const [p2PowerCounts, setP2PowerCounts] = useState(initCounts);
+  const [p1FnIds, setP1FnIds] = useState([]);
+  const [p2FnIds, setP2FnIds] = useState([]);
+
+  function changePowerCount(player, powerId, delta) {
+    const counts = player === 1 ? p1PowerCounts : p2PowerCounts;
+    const setCounts = player === 1 ? setP1PowerCounts : setP2PowerCounts;
+    const next = Math.max(0, Math.min(MAX_POWER_COUNT, counts[powerId] + delta));
+    setCounts({ ...counts, [powerId]: next });
+  }
+
+  function toggleFn(player, fnId) {
+    const ids = player === 1 ? p1FnIds : p2FnIds;
+    const setIds = player === 1 ? setP1FnIds : setP2FnIds;
+    if (ids.includes(fnId)) {
+      setIds(ids.filter(id => id !== fnId));
+    } else if (ids.length < MAX_FN_COUNT) {
+      setIds([...ids, fnId]);
+    }
+  }
+
+  function buildPowers(counts) {
+    const result = [];
+    for (const power of POWERS) {
+      for (let i = 0; i < counts[power.id]; i++) result.push({ ...power, used: false });
+    }
+    return result;
+  }
+
+  function buildFunctions(ids) {
+    return ids.map((id, i) => ({
+      fn: FUNCTION_LIBRARY.find(f => f.id === id),
+      color: FUNCTION_COLORS[i],
+      guessed: false,
+    }));
+  }
+
+  const canStart = p1FnIds.length > 0 && p2FnIds.length > 0;
+
+  const counterBtnStyle = (disabled) => ({
+    width: 24, height: 24, background: '#0a0a2a',
+    border: '1px solid #2a2a6a', borderRadius: 4,
+    color: disabled ? '#222' : '#66b3ff',
+    fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+    cursor: disabled ? 'default' : 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+  });
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#0a0a0f', color: '#e0e0e0',
+      fontFamily: "'Courier New', Courier, monospace",
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 16, padding: '32px 16px',
+    }}>
+      <GameTitle />
+      <p style={subtitleStyle()}>
+        POWER TEST ·{' '}
+        <span style={{ color: '#00ff88' }}>{DIFFICULTY[difficulty].label.toUpperCase()}</span>
+      </p>
+      <div style={{ fontSize: 11, color: '#445', letterSpacing: '0.08em', textAlign: 'center' }}>
+        Pick functions and powers for each player · then play a lightning round
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', width: '100%', maxWidth: 720 }}>
+        {[1, 2].map(player => {
+          const fnIds = player === 1 ? p1FnIds : p2FnIds;
+          const powerCounts = player === 1 ? p1PowerCounts : p2PowerCounts;
+          return (
+            <div key={player} style={{
+              flex: '1 1 300px', background: '#0d0d1a', border: '1px solid #1e1e3a',
+              borderRadius: 8, padding: '16px',
+            }}>
+              <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.2em', marginBottom: 14, textAlign: 'center', fontWeight: 700 }}>
+                PLAYER {player}
+              </div>
+
+              <div style={{ fontSize: 10, color: '#66b3ff', letterSpacing: '0.15em', marginBottom: 8, fontWeight: 700 }}>
+                FUNCTIONS — {fnIds.length}/{MAX_FN_COUNT} selected
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 18 }}>
+                {FUNCTION_LIBRARY.map(fn => {
+                  const isOn = fnIds.includes(fn.id);
+                  const isFull = fnIds.length >= MAX_FN_COUNT && !isOn;
+                  return (
+                    <button
+                      key={fn.id}
+                      onClick={() => !isFull && toggleFn(player, fn.id)}
+                      style={{
+                        padding: '4px 9px',
+                        background: isOn ? '#001a2a' : '#07070f',
+                        border: `1px solid ${isOn ? '#66b3ff' : '#1a1a3a'}`,
+                        borderRadius: 4,
+                        color: isOn ? '#66b3ff' : isFull ? '#1a1a2a' : '#334',
+                        fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+                        cursor: isFull ? 'default' : 'pointer',
+                        letterSpacing: '0.03em', transition: 'all 0.1s',
+                      }}
+                    >
+                      {fn.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 10, color: '#66b3ff', letterSpacing: '0.15em', marginBottom: 8, fontWeight: 700 }}>
+                POWERS
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {POWERS.map(power => {
+                  const count = powerCounts[power.id];
+                  return (
+                    <div key={power.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: count > 0 ? '#001a2a' : '#07070f',
+                      border: `1px solid ${count > 0 ? '#66b3ff44' : '#1a1a3a'}`,
+                      borderRadius: 6, padding: '7px 10px',
+                    }}>
+                      <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: count > 0 ? '#66b3ff' : '#445', letterSpacing: '0.06em' }}>
+                        {power.label}
+                      </div>
+                      <button onClick={() => changePowerCount(player, power.id, -1)} style={counterBtnStyle(count === 0)}>−</button>
+                      <div style={{ width: 18, textAlign: 'center', fontSize: 13, fontWeight: 700, color: count > 0 ? '#66b3ff' : '#334' }}>
+                        {count}
+                      </div>
+                      <button onClick={() => changePowerCount(player, power.id, 1)} style={counterBtnStyle(count >= MAX_POWER_COUNT)}>+</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {!canStart && (
+        <div style={{ fontSize: 11, color: '#445', letterSpacing: '0.08em' }}>
+          Select at least 1 function per player to start
+        </div>
+      )}
+
+      <button
+        onClick={() => canStart && onStart(buildPowers(p1PowerCounts), buildPowers(p2PowerCounts), buildFunctions(p1FnIds), buildFunctions(p2FnIds))}
+        style={{
+          padding: '14px 48px',
+          background: canStart ? '#001a0d' : '#07070f',
+          border: `2px solid ${canStart ? '#00ff88' : '#1a3a1a'}`,
+          borderRadius: 8, color: canStart ? '#00ff88' : '#224',
+          fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
+          cursor: canStart ? 'pointer' : 'default',
+          letterSpacing: '0.12em', boxShadow: canStart ? '0 0 24px #00ff8844' : 'none',
+        }}
+      >
+        START TEST →
+      </button>
+      <BackButton label="← CHANGE MODE" onClick={onBack} />
     </div>
   );
 }
@@ -752,13 +923,15 @@ function ShotModeButtons({ shotMode, onChange }) {
   );
 }
 
-function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire }) {
+function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
     { key: 'F',  label: 'F(x)' },
   ];
-  const canFire = selectedGrid !== null && selectedPreset !== null;
+  const pairAlreadyUsed = selectedGrid !== null && selectedPreset !== null &&
+    usedScans.some(s => s.gridKey === selectedGrid && s.presetIdx === selectedPreset);
+  const canFire = selectedGrid !== null && selectedPreset !== null && !pairAlreadyUsed;
   return (
     <div style={{
       marginTop: 12, width: '100%', maxWidth: 560,
@@ -791,23 +964,29 @@ function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSele
         SELECT PARABOLA
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {PARABOLA_PRESETS.map((p, i) => (
-          <button
-            key={i}
-            onClick={() => onSelectPreset(i)}
-            style={{
-              padding: '6px 12px',
-              background: selectedPreset === i ? '#1a1400' : '#0a0a1a',
-              border: `1px solid ${selectedPreset === i ? '#ffd700' : '#2a2a4a'}`,
-              borderRadius: 4,
-              color: selectedPreset === i ? '#ffd700' : '#668',
-              fontFamily: 'inherit', fontSize: 13, cursor: 'pointer',
-              letterSpacing: '0.04em',
-              boxShadow: selectedPreset === i ? '0 0 8px #ffd70033' : 'none',
-              transition: 'all 0.15s',
-            }}
-          >{p.label}</button>
-        ))}
+        {PARABOLA_PRESETS.map((p, i) => {
+          const alreadyUsed = selectedGrid !== null && usedScans.some(s => s.gridKey === selectedGrid && s.presetIdx === i);
+          const isSelected = selectedPreset === i;
+          return (
+            <button
+              key={i}
+              onClick={() => !alreadyUsed && onSelectPreset(i)}
+              disabled={alreadyUsed}
+              style={{
+                padding: '6px 12px',
+                background: isSelected ? '#1a1400' : alreadyUsed ? '#090909' : '#0a0a1a',
+                border: `1px solid ${isSelected ? '#ffd700' : alreadyUsed ? '#1a1a1a' : '#2a2a4a'}`,
+                borderRadius: 4,
+                color: isSelected ? '#ffd700' : alreadyUsed ? '#222' : '#668',
+                fontFamily: 'inherit', fontSize: 13, cursor: alreadyUsed ? 'default' : 'pointer',
+                letterSpacing: '0.04em',
+                boxShadow: isSelected ? '0 0 8px #ffd70033' : 'none',
+                textDecoration: alreadyUsed ? 'line-through' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >{p.label}</button>
+          );
+        })}
       </div>
       <button
         disabled={!canFire}
@@ -896,12 +1075,12 @@ function ParabolaScanGraph({ presetFn, hits }) {
   );
 }
 
-function ParabolaScanResultCard({ result }) {
-  const [open, setOpen] = useState(true);
+function ParabolaScanResultCard({ result, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
   if (!result) return null;
   return (
     <div style={{
-      marginTop: 12, width: '100%', maxWidth: 560,
+      marginTop: 8, width: '100%', maxWidth: 560,
       background: '#0d0d1a', border: '1px solid #ffd70044',
       borderRadius: 8, padding: '12px 16px',
     }}>
@@ -941,6 +1120,17 @@ function ParabolaScanResultCard({ result }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ParabolaScanResultCards({ results }) {
+  if (!results || results.length === 0) return null;
+  return (
+    <div style={{ width: '100%', maxWidth: 560 }}>
+      {results.map((result, i) => (
+        <ParabolaScanResultCard key={i} result={result} defaultOpen={i === results.length - 1} />
+      ))}
     </div>
   );
 }
@@ -1098,8 +1288,9 @@ export default function App() {
   const [mpPassTo, setMpPassTo] = useState(null);
   const [mpShotMode, setMpShotMode] = useState('f');
   const [mpMessage, setMpMessage] = useState('');
-  const [mpP1WrongGuesses, setMpP1WrongGuesses] = useState([]);
-  const [mpP2WrongGuesses, setMpP2WrongGuesses] = useState([]);
+  const emptyWrongGuesses = () => ({ f: [], df: [], F: [] });
+  const [mpP1WrongGuesses, setMpP1WrongGuesses] = useState(emptyWrongGuesses);
+  const [mpP2WrongGuesses, setMpP2WrongGuesses] = useState(emptyWrongGuesses);
   const [mpWinner, setMpWinner] = useState(null); // round winner: 1 | 2
   const [mpMatchWinner, setMpMatchWinner] = useState(null); // match winner: 1 | 2 (normal mode only)
   const [mpShotsFiredThisTurn, setMpShotsFiredThisTurn] = useState(0);
@@ -1114,8 +1305,8 @@ export default function App() {
   const [mpParabolaShotPending, setMpParabolaShotPending] = useState(false);
   const [mpParabolaShotGridKey, setMpParabolaShotGridKey] = useState(null);
   const [mpParabolaShotPresetIdx, setMpParabolaShotPresetIdx] = useState(null);
-  const [p1ParabolaScanResult, setP1ParabolaScanResult] = useState(null);
-  const [p2ParabolaScanResult, setP2ParabolaScanResult] = useState(null);
+  const [p1ParabolaScanResults, setP1ParabolaScanResults] = useState([]);
+  const [p2ParabolaScanResults, setP2ParabolaScanResults] = useState([]);
 
   const [mpParabolaShotPendingIndex, setMpParabolaShotPendingIndex] = useState(null);
 
@@ -1148,6 +1339,8 @@ export default function App() {
       setMessage('');
       setWrongGuessIds([]);
       setPhase('solo');
+    } else if (mode === 'powertest') {
+      setPhase('power-test-setup');
     } else {
       setPhase('roundtype');
     }
@@ -1181,10 +1374,10 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
-    setMpP1WrongGuesses([]);
-    setMpP2WrongGuesses([]);
-    setP1ParabolaScanResult(null);
-    setP2ParabolaScanResult(null);
+    setMpP1WrongGuesses(emptyWrongGuesses());
+    setMpP2WrongGuesses(emptyWrongGuesses());
+    setP1ParabolaScanResults([]);
+    setP2ParabolaScanResults([]);
     setMpParabolaShotPending(false);
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
@@ -1198,6 +1391,48 @@ export default function App() {
     setMpHeatCheckActive(false);
     setMpHeatCheckMissed(false);
     setPhase('power-draw');
+  }
+
+  function startPowerTestGame(p1TestPowers, p2TestPowers, p1Fns, p2Fns) {
+    setRoundType('lightning');
+    setMpCurrentRound(1);
+    setMpP1RoundWins(0);
+    setMpP2RoundWins(0);
+    setP1Powers(p1TestPowers);
+    setP2Powers(p2TestPowers);
+    setMpCoinFlipWinner(null);
+
+    setP1Slot({ functions: p1Fns, grid: initGrid() });
+    setP2Slot({ functions: p2Fns, grid: initGrid() });
+    setMpP1Identified([]);
+    setMpP2Identified([]);
+    setMpCurrentPlayer(1);
+    setMpPassTo(null);
+    setMpShotMode('f');
+    setMpMessage('');
+    setMpWinner(null);
+    setMpMatchWinner(null);
+    setMpShotsFiredThisTurn(0);
+    setMpShotsAllowedThisTurn(1);
+    setMpBonusTurnsRemaining(0);
+    setMpNextPassIsBonusTurn(false);
+    setMpP1WrongGuesses(emptyWrongGuesses());
+    setMpP2WrongGuesses(emptyWrongGuesses());
+    setP1ParabolaScanResults([]);
+    setP2ParabolaScanResults([]);
+    setMpParabolaShotPending(false);
+    setMpParabolaShotPendingIndex(null);
+    setMpParabolaShotGridKey(null);
+    setMpParabolaShotPresetIdx(null);
+    setMpTrapCardPending(false);
+    setMpTrapCardPendingIndex(null);
+    setMpTrapCardGrid(null);
+    setP1TrapCard(null);
+    setP2TrapCard(null);
+    setMpTrapTriggered(false);
+    setMpHeatCheckActive(false);
+    setMpHeatCheckMissed(false);
+    setPhase('mp');
   }
 
   function goHome() {
@@ -1308,9 +1543,9 @@ export default function App() {
       return { color, points: findIntersectionPoints(gFn, preset.fn) };
     });
     const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
-    const result = { gridLabel: gridLabels[mpParabolaShotGridKey], parabolaLabel: preset.label, hits, presetFn: preset.fn };
-    if (isP1) setP1ParabolaScanResult(result);
-    else setP2ParabolaScanResult(result);
+    const result = { gridLabel: gridLabels[mpParabolaShotGridKey], gridKey: mpParabolaShotGridKey, parabolaLabel: preset.label, hits, presetFn: preset.fn, presetIdx: mpParabolaShotPresetIdx };
+    if (isP1) setP1ParabolaScanResults(prev => [...prev, result]);
+    else setP2ParabolaScanResults(prev => [...prev, result]);
     // Mark the power consumed only now that the scan actually fired
     setPowers(prev => prev.map((p, i) => i === mpParabolaShotPendingIndex ? { ...p, used: true } : p));
     setMpParabolaShotPending(false);
@@ -1459,7 +1694,10 @@ export default function App() {
         }
       }
     } else {
-      setWrongGuesses(prev => prev.includes(id) ? prev : [...prev, id]);
+      setWrongGuesses(prev => ({
+        ...prev,
+        [mpShotMode]: prev[mpShotMode].includes(id) ? prev[mpShotMode] : [...prev[mpShotMode], id],
+      }));
       endMpTurn(true);
     }
   }
@@ -1491,10 +1729,10 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
-    setMpP1WrongGuesses([]);
-    setMpP2WrongGuesses([]);
-    setP1ParabolaScanResult(null);
-    setP2ParabolaScanResult(null);
+    setMpP1WrongGuesses(emptyWrongGuesses());
+    setMpP2WrongGuesses(emptyWrongGuesses());
+    setP1ParabolaScanResults([]);
+    setP2ParabolaScanResults([]);
     setMpParabolaShotPending(false);
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
@@ -1531,6 +1769,16 @@ export default function App() {
       <RoundTypeScreen
         difficulty={difficulty}
         onSelect={handleRoundTypeSelect}
+        onBack={() => setPhase('mode')}
+      />
+    );
+  }
+
+  if (phase === 'power-test-setup') {
+    return (
+      <PowerTestSetupScreen
+        difficulty={difficulty}
+        onStart={startPowerTestGame}
         onBack={() => setPhase('mode')}
       />
     );
@@ -1719,24 +1967,44 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <button
-              onClick={goHome}
-              style={{
-                marginTop: 16,
-                padding: '12px 32px',
-                background: '#001a0d',
-                border: '2px solid #00ff88',
-                borderRadius: 6,
-                color: '#00ff88',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 0 14px #00ff8855',
-              }}
-            >
-              NEW MISSION
-            </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              {gameMode === 'powertest' && (
+                <button
+                  onClick={() => setPhase('power-test-setup')}
+                  style={{
+                    padding: '12px 28px',
+                    background: '#0a0a2a',
+                    border: '2px solid #66b3ff',
+                    borderRadius: 6,
+                    color: '#66b3ff',
+                    fontFamily: 'inherit',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 0 14px #66b3ff33',
+                  }}
+                >
+                  TEST AGAIN →
+                </button>
+              )}
+              <button
+                onClick={goHome}
+                style={{
+                  padding: '12px 32px',
+                  background: '#001a0d',
+                  border: '2px solid #00ff88',
+                  borderRadius: 6,
+                  color: '#00ff88',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 14px #00ff8855',
+                }}
+              >
+                NEW MISSION
+              </button>
+            </div>
           </div>
         );
       }
@@ -1862,7 +2130,7 @@ export default function App() {
           difficulty={difficulty}
           onGuess={mpHandleGuessById}
           identifiedIds={identified}
-          wrongGuessIds={isP1 ? mpP1WrongGuesses : mpP2WrongGuesses}
+          wrongGuessIds={(isP1 ? mpP1WrongGuesses : mpP2WrongGuesses)[mpShotMode]}
           message={mpMessage}
           activeFunctions={targetSlot.functions}
         />
@@ -1919,10 +2187,11 @@ export default function App() {
             selectedPreset={mpParabolaShotPresetIdx}
             onSelectPreset={setMpParabolaShotPresetIdx}
             onFire={fireParabolaScan}
+            usedScans={(isP1 ? p1ParabolaScanResults : p2ParabolaScanResults).map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
           />
         )}
 
-        <ParabolaScanResultCard result={isP1 ? p1ParabolaScanResult : p2ParabolaScanResult} />
+        <ParabolaScanResultCards results={isP1 ? p1ParabolaScanResults : p2ParabolaScanResults} />
 
         {(mpParabolaShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
           <button
