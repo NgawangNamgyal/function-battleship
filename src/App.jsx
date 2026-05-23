@@ -1551,15 +1551,29 @@ function TrapCardPicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, ownGr
   );
 }
 
-function PartyPerryPicker({ onGuess }) {
-  const [result, setResult] = useState(null); // null | 'correct' | 'wrong'
+function PartyPerryPicker({ onGuess, newPowers, onClose }) {
+  const [guessed, setGuessed] = useState(false);
+  const [wrong, setWrong] = useState(false);
 
   function handleGuess(n) {
-    if (result) return;
-    const correct = n === 7;
-    setResult(correct ? 'correct' : 'wrong');
+    if (guessed) return;
+    setGuessed(true);
+    if (n !== 7) setWrong(true);
     onGuess(n);
   }
+
+  const btnStyle = {
+    width: 38,
+    height: 38,
+    background: '#1a0d2e',
+    border: '2px solid #cc88ff55',
+    borderRadius: 6,
+    color: '#cc88ff',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+  };
 
   return (
     <div style={{
@@ -1569,6 +1583,8 @@ function PartyPerryPicker({ onGuess }) {
       padding: '16px 20px',
       marginTop: 12,
       textAlign: 'center',
+      maxWidth: 360,
+      width: '100%',
     }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: '#cc88ff', letterSpacing: '0.1em', marginBottom: 8 }}>
         PARTY PERRY
@@ -1576,36 +1592,78 @@ function PartyPerryPicker({ onGuess }) {
       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
         How many hats does Perry have?
       </div>
-      {!result ? (
+
+      {!guessed && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
           {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-            <button
-              key={n}
-              onClick={() => handleGuess(n)}
-              style={{
-                width: 38,
-                height: 38,
-                background: '#1a0d2e',
-                border: '2px solid #cc88ff55',
-                borderRadius: 6,
-                color: '#cc88ff',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {n}
-            </button>
+            <button key={n} onClick={() => handleGuess(n)} style={btnStyle}>{n}</button>
           ))}
         </div>
-      ) : result === 'correct' ? (
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#44ff88', letterSpacing: '0.1em' }}>
-          CORRECT! +2 POWERS
+      )}
+
+      {guessed && wrong && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#ff4444', letterSpacing: '0.1em', marginBottom: 10 }}>
+            WRONG
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '7px 24px',
+              background: '#1a0808',
+              border: '2px solid #ff4444',
+              borderRadius: 6,
+              color: '#ff4444',
+              fontFamily: 'inherit',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.1em',
+            }}
+          >
+            OK →
+          </button>
         </div>
-      ) : (
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#ff4444', letterSpacing: '0.1em' }}>
-          WRONG
+      )}
+
+      {guessed && !wrong && newPowers && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#44ff88', letterSpacing: '0.1em', marginBottom: 10 }}>
+            CORRECT! +2 POWERS
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+            {newPowers.map((p, i) => (
+              <div key={i} style={{
+                background: '#0a1a0a',
+                border: '2px solid #44ff8888',
+                borderRadius: 6,
+                padding: '6px 12px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#44ff88',
+                letterSpacing: '0.08em',
+              }}>
+                {p.label}
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '7px 24px',
+              background: '#0a1a0a',
+              border: '2px solid #44ff88',
+              borderRadius: 6,
+              color: '#44ff88',
+              fontFamily: 'inherit',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.1em',
+            }}
+          >
+            NICE →
+          </button>
         </div>
       )}
     </div>
@@ -1690,6 +1748,7 @@ export default function App() {
   // ── Party Perry ──
   const [mpPartyPerryPending, setMpPartyPerryPending] = useState(false);
   const [mpPartyPerryPendingIndex, setMpPartyPerryPendingIndex] = useState(null);
+  const [mpPartyPerryNewPowers, setMpPartyPerryNewPowers] = useState(null);
 
   // ── Navigation ──
 
@@ -1769,6 +1828,7 @@ export default function App() {
     setP2BindingVowActive(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
+    setMpPartyPerryNewPowers(null);
     setPhase('power-draw');
   }
 
@@ -1821,6 +1881,7 @@ export default function App() {
     setP2BindingVowActive(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
+    setMpPartyPerryNewPowers(null);
     setPhase('mp');
   }
 
@@ -1932,9 +1993,14 @@ export default function App() {
     if (guess === 7) {
       const bonus = rollPowers(2);
       setPowers(prev => [...prev, ...bonus]);
+      setMpPartyPerryNewPowers(bonus);
     }
+  }
+
+  function closePartyPerry() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
+    setMpPartyPerryNewPowers(null);
   }
 
   function confirmTrapCard(grid, col, row) {
@@ -2089,6 +2155,7 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
+    setMpPartyPerryNewPowers(null);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -2221,6 +2288,7 @@ export default function App() {
     setP2BindingVowActive(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
+    setMpPartyPerryNewPowers(null);
     setPhase('power-draw');
   }
 
@@ -2708,7 +2776,7 @@ export default function App() {
         <SpiralScanResultCards results={isP1 ? p1SpiralScanResults : p2SpiralScanResults} />
 
         {mpPartyPerryPending && (
-          <PartyPerryPicker onGuess={confirmPartyPerry} />
+          <PartyPerryPicker onGuess={confirmPartyPerry} newPowers={mpPartyPerryNewPowers} onClose={closePartyPerry} />
         )}
 
         {(mpParabolaShotPending || mpSpiralShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
