@@ -40,6 +40,7 @@ const POWERS = [
   { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
   { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
+  { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
 ];
 
 const PARABOLA_PRESETS = [
@@ -731,7 +732,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -745,7 +746,8 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
           const isPending =
             (power.id === 'trapCard' && trapCardPending) ||
             (power.id === 'parabolaShot' && parabolaShotPending) ||
-            (power.id === 'spiralShot' && spiralShotPending);
+            (power.id === 'spiralShot' && spiralShotPending) ||
+            (power.id === 'partyPerry' && partyPerryPending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             power.id === 'bonus' ||
@@ -1549,6 +1551,67 @@ function TrapCardPicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, ownGr
   );
 }
 
+function PartyPerryPicker({ onGuess }) {
+  const [result, setResult] = useState(null); // null | 'correct' | 'wrong'
+
+  function handleGuess(n) {
+    if (result) return;
+    const correct = n === 7;
+    setResult(correct ? 'correct' : 'wrong');
+    onGuess(n);
+  }
+
+  return (
+    <div style={{
+      background: '#0d0d1a',
+      border: '2px solid #cc88ff',
+      borderRadius: 8,
+      padding: '16px 20px',
+      marginTop: 12,
+      textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#cc88ff', letterSpacing: '0.1em', marginBottom: 8 }}>
+        PARTY PERRY
+      </div>
+      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 12 }}>
+        How many hats does Perry have?
+      </div>
+      {!result ? (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+            <button
+              key={n}
+              onClick={() => handleGuess(n)}
+              style={{
+                width: 38,
+                height: 38,
+                background: '#1a0d2e',
+                border: '2px solid #cc88ff55',
+                borderRadius: 6,
+                color: '#cc88ff',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      ) : result === 'correct' ? (
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#44ff88', letterSpacing: '0.1em' }}>
+          CORRECT! +2 POWERS
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#ff4444', letterSpacing: '0.1em' }}>
+          WRONG
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main App
 // ─────────────────────────────────────────────────────────────
@@ -1623,6 +1686,10 @@ export default function App() {
   // ── Binding Vow ──
   const [p1BindingVowActive, setP1BindingVowActive] = useState(false);
   const [p2BindingVowActive, setP2BindingVowActive] = useState(false);
+
+  // ── Party Perry ──
+  const [mpPartyPerryPending, setMpPartyPerryPending] = useState(false);
+  const [mpPartyPerryPendingIndex, setMpPartyPerryPendingIndex] = useState(null);
 
   // ── Navigation ──
 
@@ -1700,6 +1767,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpPartyPerryPending(false);
+    setMpPartyPerryPendingIndex(null);
     setPhase('power-draw');
   }
 
@@ -1750,6 +1819,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpPartyPerryPending(false);
+    setMpPartyPerryPendingIndex(null);
     setPhase('mp');
   }
 
@@ -1840,12 +1911,30 @@ export default function App() {
       return;
     }
 
+    if (power.id === 'partyPerry') {
+      setMpPartyPerryPending(true);
+      setMpPartyPerryPendingIndex(powerIndex);
+      return;
+    }
+
     if (power.id === 'reload' && mpHeatCheckActive && !mpHeatCheckMissed && mpShotsFiredThisTurn < 3) return;
 
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
     if (power.id === 'reload') {
       setMpShotsAllowedThisTurn(prev => prev + 1);
     }
+  }
+
+  function confirmPartyPerry(guess) {
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    setPowers(prev => prev.map((p, i) => i === mpPartyPerryPendingIndex ? { ...p, used: true } : p));
+    if (guess === 7) {
+      const bonus = rollPowers(2);
+      setPowers(prev => [...prev, ...bonus]);
+    }
+    setMpPartyPerryPending(false);
+    setMpPartyPerryPendingIndex(null);
   }
 
   function confirmTrapCard(grid, col, row) {
@@ -1998,6 +2087,8 @@ export default function App() {
     setMpTrapCardGrid(null);
     setMpHeatCheckActive(false);
     setMpHeatCheckMissed(false);
+    setMpPartyPerryPending(false);
+    setMpPartyPerryPendingIndex(null);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -2128,6 +2219,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpPartyPerryPending(false);
+    setMpPartyPerryPendingIndex(null);
     setPhase('power-draw');
   }
 
@@ -2545,6 +2638,7 @@ export default function App() {
           trapCardPending={mpTrapCardPending}
           parabolaShotPending={mpParabolaShotPending}
           spiralShotPending={mpSpiralShotPending}
+          partyPerryPending={mpPartyPerryPending}
           heatCheckActive={mpHeatCheckActive}
           heatCheckMissed={mpHeatCheckMissed}
           bindingVowActive={currentBindingVowActive}
@@ -2612,6 +2706,10 @@ export default function App() {
         )}
 
         <SpiralScanResultCards results={isP1 ? p1SpiralScanResults : p2SpiralScanResults} />
+
+        {mpPartyPerryPending && (
+          <PartyPerryPicker onGuess={confirmPartyPerry} />
+        )}
 
         {(mpParabolaShotPending || mpSpiralShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
           <button
