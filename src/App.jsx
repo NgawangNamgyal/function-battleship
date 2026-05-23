@@ -39,6 +39,7 @@ const POWERS = [
   { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
   { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
+  { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
 ];
 
 const PARABOLA_PRESETS = [
@@ -747,6 +748,7 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             (power.id === 'spiralShot' && spiralShotPending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
+            power.id === 'bonus' ||
             (power.id === 'heatCheck' && (shotsFired > 0 || shotsAllowed >= 2)) ||
             (power.id === 'reload' && heatCheckOngoing) ||
             (power.id === 'bindingVow' && bindingVowActive);
@@ -780,7 +782,9 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
                     ? `✓ ${power.label}`
                     : isPending
                       ? `↻ ${power.label} SELECTING...`
-                      : `USE: ${power.label}`}
+                      : power.id === 'bonus'
+                        ? `AUTO: ${power.label}`
+                        : `USE: ${power.label}`}
             </button>
           );
         })}
@@ -2042,6 +2046,16 @@ export default function App() {
       const newIdentified = [...identified, id];
       setIdentified(newIdentified);
       setMpMessage('');
+
+      // Bonus power: auto-trigger on correct guess → +2 shots
+      const currentPowers = isP1 ? p1Powers : p2Powers;
+      const setPowers = isP1 ? setP1Powers : setP2Powers;
+      const bonusIdx = currentPowers.findIndex(p => p.id === 'bonus' && !p.used);
+      if (bonusIdx !== -1) {
+        setPowers(prev => prev.map((p, i) => i === bonusIdx ? { ...p, used: true } : p));
+        setMpShotsAllowedThisTurn(prev => prev + 2);
+      }
+
       if (newIdentified.length === targetSlot.functions.length) {
         const roundWinner = isP1 ? 1 : 2;
         const newP1Wins = roundWinner === 1 ? mpP1RoundWins + 1 : mpP1RoundWins;
