@@ -33,10 +33,11 @@ const DIFFICULTY = {
 const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 
 const POWERS = [
-  { id: 'doubleShot',   label: 'DOUBLE SHOT',   desc: 'Fire two shots this turn' },
+  { id: 'reload',       label: 'RELOAD',        desc: '+1 shot this turn · stacks with other powers and itself' },
   { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
   { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
   { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
+  { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
 ];
 
 const PARABOLA_PRESETS = [
@@ -686,7 +687,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, heatCheckActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -695,19 +696,21 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {powers.map((power, i) => {
-          const alreadyActive = power.id === 'doubleShot' && shotsAllowed >= 2;
           const isHeatCheckOn = power.id === 'heatCheck' && heatCheckActive;
+          const isBindingVowOn = power.id === 'bindingVow' && bindingVowActive;
           const isPending =
             (power.id === 'trapCard' && trapCardPending) ||
             (power.id === 'parabolaShot' && parabolaShotPending);
+          const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             (power.id === 'heatCheck' && (shotsFired > 0 || shotsAllowed >= 2)) ||
-            (power.id === 'doubleShot' && heatCheckActive);
-          const disabled = power.used || alreadyActive || isPending || cantActivate;
+            (power.id === 'reload' && heatCheckOngoing) ||
+            (power.id === 'bindingVow' && bindingVowActive);
+          const disabled = power.used || isPending || cantActivate;
           let bg = '#0a0a2a', borderColor = '#2a2a6a', color = '#66b3ff';
           if (isHeatCheckOn)      { bg = '#1a0a00'; borderColor = '#ff880088'; color = '#ff8800'; }
+          else if (isBindingVowOn){ bg = '#0d0814'; borderColor = '#a855f788'; color = '#a855f7'; }
           else if (power.used)    { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#334'; }
-          else if (alreadyActive) { bg = '#001a0d'; borderColor = '#00ff8844'; color = '#00ff88'; }
           else if (isPending)     { bg = '#1a0808'; borderColor = '#ff6b6b88'; color = '#ff6b6b'; }
           else if (cantActivate)  { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#445'; }
           return (
@@ -727,10 +730,10 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             >
               {isHeatCheckOn
                 ? `🔥 ${power.label} ACTIVE`
-                : power.used
-                  ? `✓ ${power.label}`
-                  : alreadyActive
-                    ? `⚡ ${power.label} ACTIVE`
+                : isBindingVowOn
+                  ? `⛓ ${power.label} ACTIVE`
+                  : power.used
+                    ? `✓ ${power.label}`
                     : isPending
                       ? `↻ ${power.label} SELECTING...`
                       : `USE: ${power.label}`}
@@ -889,7 +892,7 @@ function FireGrid({ grid, shotMode, onFire, disabled }) {
   );
 }
 
-function ShotModeButtons({ shotMode, onChange }) {
+function ShotModeButtons({ shotMode, onChange, disabledModes = [] }) {
   const modes = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -897,33 +900,41 @@ function ShotModeButtons({ shotMode, onChange }) {
   ];
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-      {modes.map(({ key, label }) => (
-        <button
-          key={key}
-          onClick={() => onChange(key)}
-          style={{
-            padding: '10px 20px',
-            background: shotMode === key ? '#00ff1122' : '#111124',
-            border: `2px solid ${shotMode === key ? '#00ff88' : '#2a2a4a'}`,
-            borderRadius: 6,
-            color: shotMode === key ? '#00ff88' : '#668',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            letterSpacing: '0.05em',
-            boxShadow: shotMode === key ? '0 0 12px #00ff8844' : 'none',
-            transition: 'all 0.15s',
-          }}
-        >
-          {label}
-        </button>
-      ))}
+      {modes.map(({ key, label }) => {
+        const isDisabled = disabledModes.includes(key);
+        const isActive = shotMode === key;
+        return (
+          <button
+            key={key}
+            onClick={() => !isDisabled && onChange(key)}
+            disabled={isDisabled}
+            title={isDisabled ? 'Restricted by Binding Vow' : undefined}
+            style={{
+              padding: '10px 20px',
+              background: isActive ? '#00ff1122' : '#111124',
+              border: `2px solid ${isActive ? '#00ff88' : isDisabled ? '#1a1a2a' : '#2a2a4a'}`,
+              borderRadius: 6,
+              color: isActive ? '#00ff88' : isDisabled ? '#2a2a3a' : '#668',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              letterSpacing: '0.05em',
+              boxShadow: isActive ? '0 0 12px #00ff8844' : 'none',
+              transition: 'all 0.15s',
+              textDecoration: isDisabled ? 'line-through' : 'none',
+              opacity: isDisabled ? 0.4 : 1,
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [] }) {
+function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -942,23 +953,32 @@ function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSele
         PARABOLA SHOT — SELECT GRID
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {grids.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => onSelectGrid(key)}
-            style={{
-              padding: '8px 16px',
-              background: selectedGrid === key ? '#1a1400' : '#0a0a1a',
-              border: `1px solid ${selectedGrid === key ? '#ffd700' : '#2a2a4a'}`,
-              borderRadius: 4,
-              color: selectedGrid === key ? '#ffd700' : '#668',
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              letterSpacing: '0.05em',
-              boxShadow: selectedGrid === key ? '0 0 8px #ffd70033' : 'none',
-              transition: 'all 0.15s',
-            }}
-          >{label}</button>
-        ))}
+        {grids.map(({ key, label }) => {
+          const isVowLocked = bindingVowActive && key === 'f';
+          const isSelected = selectedGrid === key;
+          return (
+            <button
+              key={key}
+              onClick={() => !isVowLocked && onSelectGrid(key)}
+              disabled={isVowLocked}
+              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+              style={{
+                padding: '8px 16px',
+                background: isSelected ? '#1a1400' : '#0a0a1a',
+                border: `1px solid ${isSelected ? '#ffd700' : isVowLocked ? '#1a1a2a' : '#2a2a4a'}`,
+                borderRadius: 4,
+                color: isSelected ? '#ffd700' : isVowLocked ? '#2a2a3a' : '#668',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                letterSpacing: '0.05em',
+                boxShadow: isSelected ? '0 0 8px #ffd70033' : 'none',
+                transition: 'all 0.15s',
+                textDecoration: isVowLocked ? 'line-through' : 'none',
+                opacity: isVowLocked ? 0.4 : 1,
+              }}
+            >{label}</button>
+          );
+        })}
       </div>
       <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ffd700', marginBottom: 10, fontWeight: 700 }}>
         SELECT PARABOLA
@@ -1288,9 +1308,8 @@ export default function App() {
   const [mpPassTo, setMpPassTo] = useState(null);
   const [mpShotMode, setMpShotMode] = useState('f');
   const [mpMessage, setMpMessage] = useState('');
-  const emptyWrongGuesses = () => ({ f: [], df: [], F: [] });
-  const [mpP1WrongGuesses, setMpP1WrongGuesses] = useState(emptyWrongGuesses);
-  const [mpP2WrongGuesses, setMpP2WrongGuesses] = useState(emptyWrongGuesses);
+  const [mpP1WrongGuesses, setMpP1WrongGuesses] = useState([]);
+  const [mpP2WrongGuesses, setMpP2WrongGuesses] = useState([]);
   const [mpWinner, setMpWinner] = useState(null); // round winner: 1 | 2
   const [mpMatchWinner, setMpMatchWinner] = useState(null); // match winner: 1 | 2 (normal mode only)
   const [mpShotsFiredThisTurn, setMpShotsFiredThisTurn] = useState(0);
@@ -1321,6 +1340,10 @@ export default function App() {
   const [p1TrapCard, setP1TrapCard] = useState(null); // { grid, col, row, triggered }
   const [p2TrapCard, setP2TrapCard] = useState(null);
   const [mpTrapTriggered, setMpTrapTriggered] = useState(false);
+
+  // ── Binding Vow ──
+  const [p1BindingVowActive, setP1BindingVowActive] = useState(false);
+  const [p2BindingVowActive, setP2BindingVowActive] = useState(false);
 
   // ── Navigation ──
 
@@ -1374,8 +1397,8 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
-    setMpP1WrongGuesses(emptyWrongGuesses());
-    setMpP2WrongGuesses(emptyWrongGuesses());
+    setMpP1WrongGuesses([]);
+    setMpP2WrongGuesses([]);
     setP1ParabolaScanResults([]);
     setP2ParabolaScanResults([]);
     setMpParabolaShotPending(false);
@@ -1390,6 +1413,8 @@ export default function App() {
     setMpTrapTriggered(false);
     setMpHeatCheckActive(false);
     setMpHeatCheckMissed(false);
+    setP1BindingVowActive(false);
+    setP2BindingVowActive(false);
     setPhase('power-draw');
   }
 
@@ -1416,8 +1441,8 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
-    setMpP1WrongGuesses(emptyWrongGuesses());
-    setMpP2WrongGuesses(emptyWrongGuesses());
+    setMpP1WrongGuesses([]);
+    setMpP2WrongGuesses([]);
     setP1ParabolaScanResults([]);
     setP2ParabolaScanResults([]);
     setMpParabolaShotPending(false);
@@ -1432,6 +1457,8 @@ export default function App() {
     setMpTrapTriggered(false);
     setMpHeatCheckActive(false);
     setMpHeatCheckMissed(false);
+    setP1BindingVowActive(false);
+    setP2BindingVowActive(false);
     setPhase('mp');
   }
 
@@ -1507,11 +1534,20 @@ export default function App() {
       return;
     }
 
-    if (power.id === 'doubleShot' && mpHeatCheckActive) return;
+    if (power.id === 'bindingVow') {
+      setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
+      if (isP1) setP1BindingVowActive(true);
+      else setP2BindingVowActive(true);
+      setMpShotsAllowedThisTurn(2);
+      if (mpShotMode === 'f') setMpShotMode('df');
+      return;
+    }
+
+    if (power.id === 'reload' && mpHeatCheckActive && !mpHeatCheckMissed && mpShotsFiredThisTurn < 3) return;
 
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
-    if (power.id === 'doubleShot') {
-      setMpShotsAllowedThisTurn(2);
+    if (power.id === 'reload') {
+      setMpShotsAllowedThisTurn(prev => prev + 1);
     }
   }
 
@@ -1657,7 +1693,13 @@ export default function App() {
   }
 
   function handlePassContinue() {
-    setMpCurrentPlayer(mpPassTo);
+    const nextPlayer = mpPassTo;
+    const nextBindingVow = nextPlayer === 1 ? p1BindingVowActive : p2BindingVowActive;
+    if (nextBindingVow) {
+      setMpShotsAllowedThisTurn(2);
+      setMpShotMode('df');
+    }
+    setMpCurrentPlayer(nextPlayer);
     setMpPassTo(null);
     setMpNextPassIsBonusTurn(false);
     setMpTrapTriggered(false);
@@ -1694,10 +1736,7 @@ export default function App() {
         }
       }
     } else {
-      setWrongGuesses(prev => ({
-        ...prev,
-        [mpShotMode]: prev[mpShotMode].includes(id) ? prev[mpShotMode] : [...prev[mpShotMode], id],
-      }));
+      setWrongGuesses(prev => prev.includes(id) ? prev : [...prev, id]);
       endMpTurn(true);
     }
   }
@@ -1729,8 +1768,8 @@ export default function App() {
     setMpShotsAllowedThisTurn(1);
     setMpBonusTurnsRemaining(0);
     setMpNextPassIsBonusTurn(false);
-    setMpP1WrongGuesses(emptyWrongGuesses());
-    setMpP2WrongGuesses(emptyWrongGuesses());
+    setMpP1WrongGuesses([]);
+    setMpP2WrongGuesses([]);
     setP1ParabolaScanResults([]);
     setP2ParabolaScanResults([]);
     setMpParabolaShotPending(false);
@@ -1745,6 +1784,8 @@ export default function App() {
     setMpTrapTriggered(false);
     setMpHeatCheckActive(false);
     setMpHeatCheckMissed(false);
+    setP1BindingVowActive(false);
+    setP2BindingVowActive(false);
     setPhase('power-draw');
   }
 
@@ -1927,6 +1968,7 @@ export default function App() {
     const identified = isP1 ? mpP1Identified : mpP2Identified;
     const enemyLabel = isP1 ? 'PLAYER 2' : 'PLAYER 1';
     const diffLabel = DIFFICULTY[difficulty].label;
+    const currentBindingVowActive = isP1 ? p1BindingVowActive : p2BindingVowActive;
 
     // ── Round/Match win screen ──
     if (mpWinner !== null) {
@@ -2124,13 +2166,30 @@ export default function App() {
           ))}
         </div>
 
-        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} />
+        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} disabledModes={currentBindingVowActive ? ['f'] : []} />
+
+        {currentBindingVowActive && (
+          <div style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: '#a855f7',
+            letterSpacing: '0.1em',
+            padding: '6px 12px',
+            background: '#0d0814',
+            border: '1px solid #a855f733',
+            borderRadius: 4,
+            width: '100%',
+            maxWidth: 560,
+          }}>
+            ⛓ BINDING VOW ACTIVE · f(x) locked · 2 shots per turn
+          </div>
+        )}
 
         <FunctionBankPanel
           difficulty={difficulty}
           onGuess={mpHandleGuessById}
           identifiedIds={identified}
-          wrongGuessIds={(isP1 ? mpP1WrongGuesses : mpP2WrongGuesses)[mpShotMode]}
+          wrongGuessIds={isP1 ? mpP1WrongGuesses : mpP2WrongGuesses}
           message={mpMessage}
           activeFunctions={targetSlot.functions}
         />
@@ -2143,6 +2202,8 @@ export default function App() {
           trapCardPending={mpTrapCardPending}
           parabolaShotPending={mpParabolaShotPending}
           heatCheckActive={mpHeatCheckActive}
+          heatCheckMissed={mpHeatCheckMissed}
+          bindingVowActive={currentBindingVowActive}
         />
 
         {(() => {
@@ -2188,6 +2249,7 @@ export default function App() {
             onSelectPreset={setMpParabolaShotPresetIdx}
             onFire={fireParabolaScan}
             usedScans={(isP1 ? p1ParabolaScanResults : p2ParabolaScanResults).map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
+            bindingVowActive={currentBindingVowActive}
           />
         )}
 
