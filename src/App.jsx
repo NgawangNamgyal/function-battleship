@@ -35,6 +35,7 @@ const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 const POWERS = [
   { id: 'reload',       label: 'RELOAD',        desc: '+1 shot this turn · stacks with other powers and itself' },
   { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
+  { id: 'spiralShot',   label: 'SPIRAL SHOT',   desc: 'Scan a grid with an Archimedean spiral — shows all intersection points' },
   { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
   { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
@@ -46,6 +47,12 @@ const PARABOLA_PRESETS = [
   { label: 'y = x² − 2',  fn: x => x ** 2 - 2 },
   { label: 'y = −x²',     fn: x => -(x ** 2) },
   { label: 'y = −x² + 2', fn: x => -(x ** 2) + 2 },
+];
+
+const SPIRAL_THETA_MAX = 4 * Math.PI;
+const SPIRAL_PRESETS = [
+  { label: 'Clockwise',         fn: t => { const r = t / (2 * Math.PI); return { x: r * Math.cos(t), y: r * Math.sin(t) }; } },
+  { label: 'Counter-clockwise', fn: t => { const r = t / (2 * Math.PI); return { x: r * Math.cos(-t), y: r * Math.sin(-t) }; } },
 ];
 
 function rollPowers(count) {
@@ -126,6 +133,40 @@ function findIntersectionPoints(gFn, parabolaFn) {
     prevX = x;
   }
   // deduplicate points within 0.15 of each other
+  const deduped = [];
+  for (const p of points) {
+    if (!deduped.some(q => Math.abs(q.x - p.x) < 0.15 && Math.abs(q.y - p.y) < 0.15)) deduped.push(p);
+  }
+  return deduped;
+}
+
+function findSpiralIntersectionPoints(gFn, spiralPresetFn) {
+  const steps = 2000;
+  const points = [];
+  let prevDiff = null;
+  let prevX = null;
+  for (let i = 0; i <= steps; i++) {
+    const theta = (i / steps) * SPIRAL_THETA_MAX;
+    const { x, y } = spiralPresetFn(theta);
+    if (!isFinite(x) || !isFinite(y) || x < X_MIN - 0.1 || x > X_MAX + 0.1 || y < Y_MIN - 0.1 || y > Y_MAX + 0.1) {
+      prevDiff = null; prevX = null; continue;
+    }
+    let gVal;
+    try { gVal = gFn(x); } catch { prevDiff = null; prevX = null; continue; }
+    if (!isFinite(gVal) || isNaN(gVal)) { prevDiff = null; prevX = null; continue; }
+    const diff = gVal - y;
+    if (Math.abs(diff) < 0.05 && x >= X_MIN && x <= X_MAX && y >= Y_MIN && y <= Y_MAX) {
+      points.push({ x, y });
+    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null) {
+      const midTheta = ((i - 0.5) / steps) * SPIRAL_THETA_MAX;
+      const { x: mx, y: my } = spiralPresetFn(midTheta);
+      if (isFinite(mx) && isFinite(my) && mx >= X_MIN && mx <= X_MAX && my >= Y_MIN && my <= Y_MAX) {
+        points.push({ x: mx, y: my });
+      }
+    }
+    prevDiff = diff;
+    prevX = x;
+  }
   const deduped = [];
   for (const p of points) {
     if (!deduped.some(q => Math.abs(q.x - p.x) < 0.15 && Math.abs(q.y - p.y) < 0.15)) deduped.push(p);
@@ -687,7 +728,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -700,7 +741,8 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
           const isBindingVowOn = power.id === 'bindingVow' && bindingVowActive;
           const isPending =
             (power.id === 'trapCard' && trapCardPending) ||
-            (power.id === 'parabolaShot' && parabolaShotPending);
+            (power.id === 'parabolaShot' && parabolaShotPending) ||
+            (power.id === 'spiralShot' && spiralShotPending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             (power.id === 'heatCheck' && (shotsFired > 0 || shotsAllowed >= 2)) ||
@@ -769,7 +811,7 @@ function Panel({ title, children, accent }) {
   );
 }
 
-function FunctionBankPanel({ difficulty, onGuess, identifiedIds, wrongGuessIds, message, activeFunctions }) {
+function FunctionBankPanel({ difficulty, bankOverride, onGuess, identifiedIds, wrongGuessIds, message, activeFunctions }) {
   return (
     <div style={{ marginBottom: 16, width: '100%', maxWidth: 560 }}>
       <div style={{
@@ -790,7 +832,7 @@ function FunctionBankPanel({ difficulty, onGuess, identifiedIds, wrongGuessIds, 
         flexWrap: 'wrap',
         gap: 8,
       }}>
-        {DIFFICULTY[difficulty].bank.map(id => {
+        {(bankOverride ?? DIFFICULTY[difficulty].bank).map(id => {
           const fn = FUNCTION_LIBRARY.find(f => f.id === id);
           const identified = identifiedIds.includes(id);
           const wrong = wrongGuessIds.includes(id);
@@ -1155,6 +1197,230 @@ function ParabolaScanResultCards({ results }) {
   );
 }
 
+function SpiralShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false }) {
+  const grids = [
+    { key: 'f',  label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F',  label: 'F(x)' },
+  ];
+  const pairAlreadyUsed = selectedGrid !== null && selectedPreset !== null &&
+    usedScans.some(s => s.gridKey === selectedGrid && s.presetIdx === selectedPreset);
+  const canFire = selectedGrid !== null && selectedPreset !== null && !pairAlreadyUsed;
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#001a1a', border: '1px solid #00e5ff44',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#00e5ff', marginBottom: 10, fontWeight: 700 }}>
+        SPIRAL SHOT — SELECT GRID
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {grids.map(({ key, label }) => {
+          const isVowLocked = bindingVowActive && key === 'f';
+          const isSelected = selectedGrid === key;
+          return (
+            <button
+              key={key}
+              onClick={() => !isVowLocked && onSelectGrid(key)}
+              disabled={isVowLocked}
+              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+              style={{
+                padding: '8px 16px',
+                background: isSelected ? '#001a20' : '#000d12',
+                border: `1px solid ${isSelected ? '#00e5ff' : isVowLocked ? '#1a1a2a' : '#1a3a3a'}`,
+                borderRadius: 4,
+                color: isSelected ? '#00e5ff' : isVowLocked ? '#2a2a3a' : '#668',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                letterSpacing: '0.05em',
+                boxShadow: isSelected ? '0 0 8px #00e5ff33' : 'none',
+                transition: 'all 0.15s',
+                textDecoration: isVowLocked ? 'line-through' : 'none',
+                opacity: isVowLocked ? 0.4 : 1,
+              }}
+            >{label}</button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#00e5ff', marginBottom: 10, fontWeight: 700 }}>
+        SELECT SPIRAL
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {SPIRAL_PRESETS.map((p, i) => {
+          const alreadyUsed = selectedGrid !== null && usedScans.some(s => s.gridKey === selectedGrid && s.presetIdx === i);
+          const isSelected = selectedPreset === i;
+          return (
+            <button
+              key={i}
+              onClick={() => !alreadyUsed && onSelectPreset(i)}
+              disabled={alreadyUsed}
+              style={{
+                padding: '6px 12px',
+                background: isSelected ? '#001a20' : alreadyUsed ? '#090909' : '#000d12',
+                border: `1px solid ${isSelected ? '#00e5ff' : alreadyUsed ? '#1a1a1a' : '#1a3a3a'}`,
+                borderRadius: 4,
+                color: isSelected ? '#00e5ff' : alreadyUsed ? '#222' : '#668',
+                fontFamily: 'inherit', fontSize: 13, cursor: alreadyUsed ? 'default' : 'pointer',
+                letterSpacing: '0.04em',
+                boxShadow: isSelected ? '0 0 8px #00e5ff33' : 'none',
+                textDecoration: alreadyUsed ? 'line-through' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >{p.label}</button>
+          );
+        })}
+      </div>
+      <button
+        disabled={!canFire}
+        onClick={onFire}
+        style={{
+          padding: '10px 28px',
+          background: canFire ? '#001a20' : '#000d12',
+          border: `2px solid ${canFire ? '#00e5ff' : '#1a3a3a'}`,
+          borderRadius: 6,
+          color: canFire ? '#00e5ff' : '#334',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+          cursor: canFire ? 'pointer' : 'default',
+          letterSpacing: '0.1em',
+          boxShadow: canFire ? '0 0 12px #00e5ff33' : 'none',
+          transition: 'all 0.15s',
+        }}
+      >
+        FIRE SPIRAL SCAN →
+      </button>
+    </div>
+  );
+}
+
+function SpiralScanGraph({ presetFn, hits }) {
+  const canvasRef = useRef(null);
+  const W = 260, H = 260;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#000d12';
+    ctx.fillRect(0, 0, W, H);
+    const toPixelX = x => ((x - X_MIN) / (X_MAX - X_MIN)) * W;
+    const toPixelY = y => H - ((y - Y_MIN) / (Y_MAX - Y_MIN)) * H;
+
+    // grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
+    for (let v = -2; v <= 2; v++) {
+      ctx.beginPath(); ctx.moveTo(toPixelX(v), 0); ctx.lineTo(toPixelX(v), H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, toPixelY(v)); ctx.lineTo(W, toPixelY(v)); ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, toPixelY(0)); ctx.lineTo(W, toPixelY(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(toPixelX(0), 0); ctx.lineTo(toPixelX(0), H); ctx.stroke();
+
+    // spiral curve
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    let started = false;
+    const steps = 1600;
+    for (let i = 0; i <= steps; i++) {
+      const theta = (i / steps) * SPIRAL_THETA_MAX;
+      const { x, y } = presetFn(theta);
+      if (!isFinite(x) || !isFinite(y) || x < X_MIN - 0.5 || x > X_MAX + 0.5 || y < Y_MIN - 0.5 || y > Y_MAX + 0.5) {
+        started = false; continue;
+      }
+      const px = toPixelX(x), py = toPixelY(y);
+      if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // intersection dots
+    hits.forEach(({ color, points }) => {
+      points.forEach(({ x, y }) => {
+        const px = toPixelX(x), py = toPixelY(y);
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+    ctx.shadowBlur = 0;
+  }, [presetFn, hits]);
+
+  return (
+    <canvas ref={canvasRef} width={W} height={H}
+      style={{ border: '1px solid #00e5ff22', borderRadius: 4, display: 'block' }}
+    />
+  );
+}
+
+function SpiralScanResultCard({ result, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (!result) return null;
+  return (
+    <div style={{
+      marginTop: 8, width: '100%', maxWidth: 560,
+      background: '#001a1a', border: '1px solid #00e5ff44',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          fontSize: 10, letterSpacing: '0.2em', color: '#00e5ff',
+          marginBottom: open ? 10 : 0, fontWeight: 700,
+          cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          userSelect: 'none',
+        }}
+      >
+        <span>SPIRAL SCAN · {result.gridLabel} · {result.spiralLabel}</span>
+        <span style={{ fontSize: 12, opacity: 0.7 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <SpiralScanGraph presetFn={result.presetFn} hits={result.hits} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+            {result.hits.map(({ color, points }, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  color: points.length > 0 ? color : '#556',
+                  fontSize: 20,
+                  textShadow: points.length > 0 ? `0 0 8px ${color}` : 'none',
+                }}>●</span>
+                <span style={{ fontSize: 11, color: points.length > 0 ? color : '#778', letterSpacing: '0.08em' }}>
+                  {points.length > 0
+                    ? `${points.length} INTERSECTION${points.length > 1 ? 'S' : ''}`
+                    : 'NO INTERSECTION'}
+                </span>
+              </div>
+            ))}
+            <div style={{ fontSize: 10, color: '#005566', letterSpacing: '0.06em', marginTop: 4 }}>
+              Colored dots show where each function crosses the spiral
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpiralScanResultCards({ results }) {
+  if (!results || results.length === 0) return null;
+  return (
+    <div style={{ width: '100%', maxWidth: 560 }}>
+      {results.map((result, i) => (
+        <SpiralScanResultCard key={i} result={result} defaultOpen={i === results.length - 1} />
+      ))}
+    </div>
+  );
+}
+
 function TrapCardPicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, ownGrid, existingTrap }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const grids = [
@@ -1329,6 +1595,13 @@ export default function App() {
 
   const [mpParabolaShotPendingIndex, setMpParabolaShotPendingIndex] = useState(null);
 
+  const [mpSpiralShotPending, setMpSpiralShotPending] = useState(false);
+  const [mpSpiralShotGridKey, setMpSpiralShotGridKey] = useState(null);
+  const [mpSpiralShotPresetIdx, setMpSpiralShotPresetIdx] = useState(null);
+  const [p1SpiralScanResults, setP1SpiralScanResults] = useState([]);
+  const [p2SpiralScanResults, setP2SpiralScanResults] = useState([]);
+  const [mpSpiralShotPendingIndex, setMpSpiralShotPendingIndex] = useState(null);
+
   // ── Heat Check ──
   const [mpHeatCheckActive, setMpHeatCheckActive] = useState(false);
   const [mpHeatCheckMissed, setMpHeatCheckMissed] = useState(false);
@@ -1405,6 +1678,12 @@ export default function App() {
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setP1SpiralScanResults([]);
+    setP2SpiralScanResults([]);
+    setMpSpiralShotPending(false);
+    setMpSpiralShotPendingIndex(null);
+    setMpSpiralShotGridKey(null);
+    setMpSpiralShotPresetIdx(null);
     setMpTrapCardPending(false);
     setMpTrapCardPendingIndex(null);
     setMpTrapCardGrid(null);
@@ -1449,6 +1728,12 @@ export default function App() {
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setP1SpiralScanResults([]);
+    setP2SpiralScanResults([]);
+    setMpSpiralShotPending(false);
+    setMpSpiralShotPendingIndex(null);
+    setMpSpiralShotGridKey(null);
+    setMpSpiralShotPresetIdx(null);
     setMpTrapCardPending(false);
     setMpTrapCardPendingIndex(null);
     setMpTrapCardGrid(null);
@@ -1527,6 +1812,12 @@ export default function App() {
       return;
     }
 
+    if (power.id === 'spiralShot') {
+      setMpSpiralShotPending(true);
+      setMpSpiralShotPendingIndex(powerIndex);
+      return;
+    }
+
     if (power.id === 'heatCheck') {
       if (mpShotsFiredThisTurn > 0 || mpShotsAllowedThisTurn >= 2) return;
       setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
@@ -1590,6 +1881,27 @@ export default function App() {
     setMpParabolaShotPresetIdx(null);
   }
 
+  function fireSpiralScan() {
+    if (mpSpiralShotGridKey === null || mpSpiralShotPresetIdx === null) return;
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    const targetSlot = isP1 ? p2Slot : p1Slot;
+    const preset = SPIRAL_PRESETS[mpSpiralShotPresetIdx];
+    const hits = targetSlot.functions.map(({ fn, color }) => {
+      const gFn = mpSpiralShotGridKey === 'f' ? fn.f : mpSpiralShotGridKey === 'df' ? fn.df : fn.F;
+      return { color, points: findSpiralIntersectionPoints(gFn, preset.fn) };
+    });
+    const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+    const result = { gridLabel: gridLabels[mpSpiralShotGridKey], gridKey: mpSpiralShotGridKey, spiralLabel: preset.label, hits, presetFn: preset.fn, presetIdx: mpSpiralShotPresetIdx };
+    if (isP1) setP1SpiralScanResults(prev => [...prev, result]);
+    else setP2SpiralScanResults(prev => [...prev, result]);
+    setPowers(prev => prev.map((p, i) => i === mpSpiralShotPendingIndex ? { ...p, used: true } : p));
+    setMpSpiralShotPending(false);
+    setMpSpiralShotPendingIndex(null);
+    setMpSpiralShotGridKey(null);
+    setMpSpiralShotPresetIdx(null);
+  }
+
   function mpFireShot(col, row) {
     if (mpWinner || mpShotsFiredThisTurn >= mpShotsAllowedThisTurn) return;
     const isP1 = mpCurrentPlayer === 1;
@@ -1632,6 +1944,10 @@ export default function App() {
       setMpParabolaShotPendingIndex(null);
       setMpParabolaShotGridKey(null);
       setMpParabolaShotPresetIdx(null);
+      setMpSpiralShotPending(false);
+      setMpSpiralShotPendingIndex(null);
+      setMpSpiralShotGridKey(null);
+      setMpSpiralShotPresetIdx(null);
       setMpTrapCardPending(false);
       setMpTrapCardPendingIndex(null);
       setMpTrapCardGrid(null);
@@ -1667,6 +1983,10 @@ export default function App() {
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setMpSpiralShotPending(false);
+    setMpSpiralShotPendingIndex(null);
+    setMpSpiralShotGridKey(null);
+    setMpSpiralShotPresetIdx(null);
     setMpTrapCardPending(false);
     setMpTrapCardPendingIndex(null);
     setMpTrapCardGrid(null);
@@ -1776,6 +2096,12 @@ export default function App() {
     setMpParabolaShotPendingIndex(null);
     setMpParabolaShotGridKey(null);
     setMpParabolaShotPresetIdx(null);
+    setP1SpiralScanResults([]);
+    setP2SpiralScanResults([]);
+    setMpSpiralShotPending(false);
+    setMpSpiralShotPendingIndex(null);
+    setMpSpiralShotGridKey(null);
+    setMpSpiralShotPresetIdx(null);
     setMpTrapCardPending(false);
     setMpTrapCardPendingIndex(null);
     setMpTrapCardGrid(null);
@@ -2187,6 +2513,7 @@ export default function App() {
 
         <FunctionBankPanel
           difficulty={difficulty}
+          bankOverride={gameMode === 'powertest' ? FUNCTION_LIBRARY.map(f => f.id) : undefined}
           onGuess={mpHandleGuessById}
           identifiedIds={identified}
           wrongGuessIds={isP1 ? mpP1WrongGuesses : mpP2WrongGuesses}
@@ -2201,6 +2528,7 @@ export default function App() {
           shotsFired={mpShotsFiredThisTurn}
           trapCardPending={mpTrapCardPending}
           parabolaShotPending={mpParabolaShotPending}
+          spiralShotPending={mpSpiralShotPending}
           heatCheckActive={mpHeatCheckActive}
           heatCheckMissed={mpHeatCheckMissed}
           bindingVowActive={currentBindingVowActive}
@@ -2255,7 +2583,21 @@ export default function App() {
 
         <ParabolaScanResultCards results={isP1 ? p1ParabolaScanResults : p2ParabolaScanResults} />
 
-        {(mpParabolaShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
+        {mpSpiralShotPending && (
+          <SpiralShotPicker
+            selectedGrid={mpSpiralShotGridKey}
+            onSelectGrid={setMpSpiralShotGridKey}
+            selectedPreset={mpSpiralShotPresetIdx}
+            onSelectPreset={setMpSpiralShotPresetIdx}
+            onFire={fireSpiralScan}
+            usedScans={(isP1 ? p1SpiralScanResults : p2SpiralScanResults).map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
+            bindingVowActive={currentBindingVowActive}
+          />
+        )}
+
+        <SpiralScanResultCards results={isP1 ? p1SpiralScanResults : p2SpiralScanResults} />
+
+        {(mpParabolaShotPending || mpSpiralShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
           <button
             onClick={() => endMpTurn(false)}
             style={{
