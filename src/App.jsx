@@ -124,7 +124,8 @@ function findIntersectionPoints(gFn, parabolaFn) {
     if (Math.abs(diff) < 0.05) {
       const py = parabolaFn(x);
       if (isFinite(py) && py >= Y_MIN && py <= Y_MAX) points.push({ x, y: py });
-    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null) {
+    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null &&
+               Math.abs(prevDiff) < 5 && Math.abs(diff) < 5) {
       const midX = (prevX + x) / 2;
       const midY = parabolaFn(midX);
       if (isFinite(midY) && midY >= Y_MIN && midY <= Y_MAX) points.push({ x: midX, y: midY });
@@ -157,7 +158,8 @@ function findSpiralIntersectionPoints(gFn, spiralPresetFn) {
     const diff = gVal - y;
     if (Math.abs(diff) < 0.05 && x >= X_MIN && x <= X_MAX && y >= Y_MIN && y <= Y_MAX) {
       points.push({ x, y });
-    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null) {
+    } else if (prevDiff !== null && prevDiff * diff < 0 && prevX !== null &&
+               Math.abs(prevDiff) < 5 && Math.abs(diff) < 5) {
       const midTheta = ((i - 0.5) / steps) * SPIRAL_THETA_MAX;
       const { x: mx, y: my } = spiralPresetFn(midTheta);
       if (isFinite(mx) && isFinite(my) && mx >= X_MIN && mx <= X_MAX && my >= Y_MIN && my <= Y_MAX) {
