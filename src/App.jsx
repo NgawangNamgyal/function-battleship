@@ -40,6 +40,7 @@ const POWERS = [
   { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
   { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
+  { id: 'glitch',       label: 'GLITCH',        desc: 'Auto-triggers on a wrong guess — you steal the bonus turns instead of your opponent getting them' },
   { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
   { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
   { id: 'omnipotence',  label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
@@ -360,7 +361,7 @@ function RoundTypeScreen({ difficulty, onSelect, onBack }) {
   );
 }
 
-function PassScreen({ toPlayer, bonusTurn, trapTriggered, onContinue }) {
+function PassScreen({ toPlayer, bonusTurn, trapTriggered, glitchTriggered, onContinue }) {
   return (
     <div style={centeredPageStyle({ background: '#050508' })}>
       {trapTriggered && (
@@ -374,7 +375,18 @@ function PassScreen({ toPlayer, bonusTurn, trapTriggered, onContinue }) {
           TRAP CARD TRIGGERED — BONUS TURNS EARNED
         </div>
       )}
-      {bonusTurn && !trapTriggered && (
+      {glitchTriggered && !trapTriggered && (
+        <div style={{
+          fontSize: 13,
+          letterSpacing: '0.2em',
+          color: '#00e5ff',
+          textTransform: 'uppercase',
+          textShadow: '0 0 8px #00e5ff88',
+        }}>
+          ⚡ GLITCH PASSIVE ACTIVATED
+        </div>
+      )}
+      {bonusTurn && !trapTriggered && !glitchTriggered && (
         <div style={{
           fontSize: 13,
           letterSpacing: '0.2em',
@@ -761,6 +773,7 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             power.id === 'bonus' ||
+            power.id === 'glitch' ||
             (power.id === 'heatCheck' && (shotsFired > 0 || shotsAllowed >= 2)) ||
             (power.id === 'reload' && heatCheckOngoing) ||
             (power.id === 'bindingVow' && bindingVowActive);
@@ -794,7 +807,7 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
                     ? `✓ ${power.label}`
                     : isPending
                       ? `↻ ${power.label} SELECTING...`
-                      : power.id === 'bonus'
+                      : (power.id === 'bonus' || power.id === 'glitch')
                         ? `AUTO: ${power.label}`
                         : `USE: ${power.label}`}
             </button>
@@ -1952,6 +1965,10 @@ export default function App() {
   const [p1BindingVowActive, setP1BindingVowActive] = useState(false);
   const [p2BindingVowActive, setP2BindingVowActive] = useState(false);
 
+  // ── Glitch ──
+  const [mpGlitchBonusActive, setMpGlitchBonusActive] = useState(false);
+  const [mpGlitchTriggered, setMpGlitchTriggered] = useState(false);
+
   // ── Party Perry ──
   const [mpPartyPerryPending, setMpPartyPerryPending] = useState(false);
   const [mpPartyPerryPendingIndex, setMpPartyPerryPendingIndex] = useState(null);
@@ -2049,6 +2066,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpGlitchBonusActive(false);
+    setMpGlitchTriggered(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
@@ -2111,6 +2130,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpGlitchBonusActive(false);
+    setMpGlitchTriggered(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
@@ -2443,7 +2464,7 @@ export default function App() {
     }
   }
 
-  function endMpTurn(wrongGuess = false) {
+  function endMpTurn(wrongGuess = false, glitchTriggered = false) {
     const nextPlayer = mpCurrentPlayer === 1 ? 2 : 1;
     setMpShotsFiredThisTurn(0);
     setMpShotsAllowedThisTurn(1);
@@ -2474,14 +2495,26 @@ export default function App() {
     setMpOmnipotenceGrid(null);
     setMpPowerError('');
 
-    if (wrongGuess && mpBonusTurnsRemaining > 0) {
+    if (wrongGuess && glitchTriggered) {
+      // glitch takes priority — steal 2 turns regardless of whether we were already in a bonus run
+      setMpBonusTurnsRemaining(1);
+      setMpPassTo(mpCurrentPlayer);
+      setMpNextPassIsBonusTurn(true);
+      setMpGlitchBonusActive(true);
+      setMpGlitchTriggered(true);
+    } else if (wrongGuess && mpBonusTurnsRemaining > 0) {
+      // bonus cancels (wrong guess during a bonus run, no glitch)
       setMpBonusTurnsRemaining(0);
       setMpPassTo(nextPlayer);
       setMpNextPassIsBonusTurn(false);
+      setMpGlitchBonusActive(false);
+      setMpGlitchTriggered(false);
     } else if (wrongGuess) {
       setMpBonusTurnsRemaining(1);
       setMpPassTo(nextPlayer);
       setMpNextPassIsBonusTurn(true);
+      setMpGlitchBonusActive(false);
+      setMpGlitchTriggered(false);
     } else if (mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(prev => prev - 1);
       setMpPassTo(mpCurrentPlayer);
@@ -2489,6 +2522,8 @@ export default function App() {
     } else {
       setMpPassTo(nextPlayer);
       setMpNextPassIsBonusTurn(false);
+      setMpGlitchBonusActive(false);
+      setMpGlitchTriggered(false);
     }
     setPhase('pass');
   }
@@ -2508,6 +2543,7 @@ export default function App() {
     setMpPassTo(null);
     setMpNextPassIsBonusTurn(false);
     setMpTrapTriggered(false);
+    setMpGlitchTriggered(false);
     setPhase('mp');
   }
 
@@ -2552,7 +2588,16 @@ export default function App() {
       }
     } else {
       setWrongGuesses(prev => prev.includes(id) ? prev : [...prev, id]);
-      endMpTurn(true);
+      // Glitch power: auto-triggers on wrong guess — steal the opponent's bonus turns
+      const currentPowers = isP1 ? p1Powers : p2Powers;
+      const setPowers = isP1 ? setP1Powers : setP2Powers;
+      const glitchIdx = currentPowers.findIndex(p => p.id === 'glitch' && !p.used);
+      if (glitchIdx !== -1) {
+        setPowers(prev => prev.map((p, i) => i === glitchIdx ? { ...p, used: true } : p));
+        endMpTurn(true, true);
+      } else {
+        endMpTurn(true);
+      }
     }
   }
 
@@ -2607,6 +2652,8 @@ export default function App() {
     setMpHeatCheckMissed(false);
     setP1BindingVowActive(false);
     setP2BindingVowActive(false);
+    setMpGlitchBonusActive(false);
+    setMpGlitchTriggered(false);
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
@@ -2659,7 +2706,7 @@ export default function App() {
   }
 
   if (phase === 'pass') {
-    return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} trapTriggered={mpTrapTriggered} onContinue={handlePassContinue} />;
+    return <PassScreen toPlayer={mpPassTo} bonusTurn={mpNextPassIsBonusTurn} trapTriggered={mpTrapTriggered} glitchTriggered={mpGlitchTriggered} onContinue={handlePassContinue} />;
   }
 
   if (phase === 'power-draw') {
@@ -3018,6 +3065,23 @@ export default function App() {
             maxWidth: 560,
           }}>
             ⛓ BINDING VOW ACTIVE · f(x) locked · 2 shots per turn
+          </div>
+        )}
+
+        {mpGlitchBonusActive && (
+          <div style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: '#00e5ff',
+            letterSpacing: '0.1em',
+            padding: '6px 12px',
+            background: '#00101a',
+            border: '1px solid #00e5ff33',
+            borderRadius: 4,
+            width: '100%',
+            maxWidth: 560,
+          }}>
+            ⚡ GLITCH PASSIVE ACTIVATED · bonus turns redirected to you
           </div>
         )}
 
