@@ -41,7 +41,7 @@ const POWERS = [
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
   { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
   { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
-  { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
+  { id: 'omniscience',  label: 'OMNISCIENT',    desc: 'Choose a grid — see all 25 squares for 5 seconds' },
 ];
 
 const PARABOLA_PRESETS = [
@@ -1672,7 +1672,7 @@ function PartyPerryPicker({ onGuess, newPowers, onClose }) {
   );
 }
 
-function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel }) {
+function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bindingVowActive = false }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -1690,17 +1690,23 @@ function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel }) 
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {grids.map(({ key, label }) => {
+          const isVowLocked = bindingVowActive && key === 'f';
           const isSelected = selectedGrid === key;
           return (
-            <button key={key} onClick={() => onSelectGrid(key)} style={{
-              padding: '8px 16px',
-              background: isSelected ? '#1a0030' : '#08000f',
-              border: `1px solid ${isSelected ? '#cc44ff' : '#2a1a3a'}`,
-              borderRadius: 4, color: isSelected ? '#cc44ff' : '#668',
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              letterSpacing: '0.05em', boxShadow: isSelected ? '0 0 8px #cc44ff33' : 'none',
-              transition: 'all 0.15s',
-            }}>{label}</button>
+            <button key={key} onClick={() => !isVowLocked && onSelectGrid(key)} disabled={isVowLocked}
+              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+              style={{
+                padding: '8px 16px',
+                background: isSelected ? '#1a0030' : '#08000f',
+                border: `1px solid ${isSelected ? '#cc44ff' : isVowLocked ? '#1a1a2a' : '#2a1a3a'}`,
+                borderRadius: 4, color: isSelected ? '#cc44ff' : isVowLocked ? '#2a2a3a' : '#668',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                letterSpacing: '0.05em', boxShadow: isSelected ? '0 0 8px #cc44ff33' : 'none',
+                transition: 'all 0.15s',
+                textDecoration: isVowLocked ? 'line-through' : 'none',
+                opacity: isVowLocked ? 0.4 : 1,
+              }}>{label}</button>
           );
         })}
       </div>
@@ -2962,6 +2968,7 @@ export default function App() {
             onSelectGrid={setMpOmniscienceGrid}
             onConfirm={activateOmniscience}
             onCancel={cancelOmniscience}
+            bindingVowActive={currentBindingVowActive}
           />
         )}
 
