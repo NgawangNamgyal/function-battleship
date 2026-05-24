@@ -45,6 +45,7 @@ const POWERS = [
   { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
   { id: 'omnipotence',  label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
   { id: 'marauder',     label: 'MARAUDER',      desc: "Steal one of your opponent's powers — they lose it, you gain it to use this round" },
+  { id: 'fogOfWar',    label: 'FOG OF WAR',    desc: "For 3 of your opponent's turns, their grid is randomly assigned and hidden — they can't see or choose it" },
 ];
 
 const PARABOLA_PRESETS = [
@@ -924,12 +925,12 @@ function FunctionBankPanel({ difficulty, bankOverride, onGuess, identifiedIds, w
   );
 }
 
-function FireGrid({ grid, shotMode, onFire, disabled }) {
+function FireGrid({ grid, shotMode, onFire, disabled, fogActive }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 52px)', gap: 4 }}>
       {grid.map((rowArr, ri) =>
         rowArr.map((cell, ci) => {
-          const shot = cell.shots[shotMode];
+          const shot = fogActive ? { fired: false, hits: [] } : cell.shots[shotMode];
           const fired = shot.fired;
           const isHit = shot.hits.length > 0;
           let bg = '#111124';
@@ -2048,6 +2049,11 @@ export default function App() {
   const [mpMarauderPending, setMpMarauderPending] = useState(false);
   const [mpMarauderPendingIndex, setMpMarauderPendingIndex] = useState(null);
 
+  // ── Fog of War ──
+  const [p1FogOfWarTurns, setP1FogOfWarTurns] = useState(0);
+  const [p2FogOfWarTurns, setP2FogOfWarTurns] = useState(0);
+  const [mpFogOfWarThisTurn, setMpFogOfWarThisTurn] = useState(false);
+
   // ── Navigation ──
 
   function handleDifficultySelect(diff) {
@@ -2140,6 +2146,9 @@ export default function App() {
     setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
+    setP1FogOfWarTurns(0);
+    setP2FogOfWarTurns(0);
+    setMpFogOfWarThisTurn(false);
     setPhase('power-draw');
   }
 
@@ -2206,6 +2215,9 @@ export default function App() {
     setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
+    setP1FogOfWarTurns(0);
+    setP2FogOfWarTurns(0);
+    setMpFogOfWarThisTurn(false);
     setPhase('mp');
   }
 
@@ -2326,6 +2338,18 @@ export default function App() {
     if (power.id === 'marauder') {
       setMpMarauderPending(true);
       setMpMarauderPendingIndex(powerIndex);
+      return;
+    }
+
+    if (power.id === 'fogOfWar') {
+      const opponentFogTurns = isP1 ? p2FogOfWarTurns : p1FogOfWarTurns;
+      if (opponentFogTurns > 0) {
+        setMpPowerError('Cannot activate — Fog of War already active on opponent');
+        return;
+      }
+      setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
+      if (isP1) setP2FogOfWarTurns(prev => prev + 3);
+      else setP1FogOfWarTurns(prev => prev + 3);
       return;
     }
 
@@ -2488,20 +2512,38 @@ export default function App() {
     if (mpWinner || mpShotsFiredThisTurn >= mpShotsAllowedThisTurn) return;
     const isP1 = mpCurrentPlayer === 1;
     const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
-    if (currentDestroyedGrids.includes(mpShotMode)) return;
+    const currentBindingVowActive = isP1 ? p1BindingVowActive : p2BindingVowActive;
+
+    // Fog of War: pick a random available grid per shot; otherwise use selected mode
+    let actualShotMode;
+    if (mpFogOfWarThisTurn) {
+      const grids = availableGrids(currentDestroyedGrids, currentBindingVowActive);
+      actualShotMode = grids[Math.floor(Math.random() * grids.length)];
+    } else {
+      if (currentDestroyedGrids.includes(mpShotMode)) return;
+      actualShotMode = mpShotMode;
+    }
+
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const setTargetSlot = isP1 ? setP2Slot : setP1Slot;
 
-    if (targetSlot.grid[row][col].shots[mpShotMode].fired) return;
+    // If cell already fired in the chosen grid: normal = skip; fog = wasted shot
+    if (targetSlot.grid[row][col].shots[actualShotMode].fired) {
+      if (!mpFogOfWarThisTurn) return;
+      const newShotCount = mpShotsFiredThisTurn + 1;
+      setMpShotsFiredThisTurn(newShotCount);
+      if (mpHeatCheckActive) setMpHeatCheckMissed(true);
+      return;
+    }
 
     const hits = targetSlot.functions
-      .filter(({ fn }) => doesFunctionPassThrough(fn[mpShotMode], col, row))
+      .filter(({ fn }) => doesFunctionPassThrough(fn[actualShotMode], col, row))
       .map(({ fn, color }) => ({ fnId: fn.id, color }));
 
     const newGrid = targetSlot.grid.map((r, ri) =>
       r.map((c, ci) => {
         if (ri !== row || ci !== col) return c;
-        return { ...c, shots: { ...c.shots, [mpShotMode]: { fired: true, hits } } };
+        return { ...c, shots: { ...c.shots, [actualShotMode]: { fired: true, hits } } };
       })
     );
 
@@ -2513,11 +2555,16 @@ export default function App() {
     if (
       opponentTrap &&
       !opponentTrap.triggered &&
-      opponentTrap.grid === mpShotMode &&
+      opponentTrap.grid === actualShotMode &&
       opponentTrap.col === col &&
       opponentTrap.row === row
     ) {
       setOpponentTrap(prev => ({ ...prev, triggered: true }));
+      // Decrement fog turns for the current player since their turn is ending early
+      if (mpFogOfWarThisTurn) {
+        if (isP1) setP1FogOfWarTurns(prev => Math.max(0, prev - 1));
+        else setP2FogOfWarTurns(prev => Math.max(0, prev - 1));
+      }
       // End current player's turn immediately; trap owner gets 2 bonus turns
       const trapOwner = isP1 ? 2 : 1;
       setMpShotsFiredThisTurn(0);
@@ -2537,6 +2584,7 @@ export default function App() {
       setMpTrapCardGrid(null);
       setMpHeatCheckActive(false);
       setMpHeatCheckMissed(false);
+      setMpFogOfWarThisTurn(false);
       setMpTrapTriggered(true);
       setMpBonusTurnsRemaining(1);
       setMpPassTo(trapOwner);
@@ -2559,6 +2607,11 @@ export default function App() {
 
   function endMpTurn(wrongGuess = false, glitchTriggered = false) {
     const nextPlayer = mpCurrentPlayer === 1 ? 2 : 1;
+    // Decrement fog turns for current player if this was a fog turn
+    if (mpFogOfWarThisTurn) {
+      if (mpCurrentPlayer === 1) setP1FogOfWarTurns(prev => Math.max(0, prev - 1));
+      else setP2FogOfWarTurns(prev => Math.max(0, prev - 1));
+    }
     setMpShotsFiredThisTurn(0);
     setMpShotsAllowedThisTurn(1);
     setMpShotMode('f');
@@ -2589,6 +2642,7 @@ export default function App() {
     setMpMarauderPending(false);
     setMpMarauderPendingIndex(null);
     setMpPowerError('');
+    setMpFogOfWarThisTurn(false);
 
     if (wrongGuess && glitchTriggered) {
       // glitch takes priority — steal 2 turns regardless of whether we were already in a bonus run
@@ -2634,6 +2688,9 @@ export default function App() {
       const firstAvailable = ['f', 'df', 'F'].find(m => !nextDestroyedGrids.includes(m));
       if (firstAvailable) setMpShotMode(firstAvailable);
     }
+    // Fog of War: grid randomized per shot inside mpFireShot; just flag the turn here
+    const nextFogTurns = nextPlayer === 1 ? p1FogOfWarTurns : p2FogOfWarTurns;
+    setMpFogOfWarThisTurn(nextFogTurns > 0);
     setMpCurrentPlayer(nextPlayer);
     setMpPassTo(null);
     setMpNextPassIsBonusTurn(false);
@@ -2763,6 +2820,9 @@ export default function App() {
     setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
+    setP1FogOfWarTurns(0);
+    setP2FogOfWarTurns(0);
+    setMpFogOfWarThisTurn(false);
     setPhase('power-draw');
   }
 
@@ -3131,10 +3191,10 @@ export default function App() {
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
           <Panel title={`${enemyLabel}'S GRID`}>
-            <FireGrid grid={targetSlot.grid} shotMode={mpShotMode} onFire={mpFireShot} disabled={false} />
+            <FireGrid grid={targetSlot.grid} shotMode={mpShotMode} onFire={mpFireShot} disabled={false} fogActive={mpFogOfWarThisTurn} />
           </Panel>
           {shotModes.map(({ key, label }) => (
-            <Panel key={key} title={label} accent={mpShotMode === key ? '#00ff88' : undefined}>
+            <Panel key={key} title={label} accent={!mpFogOfWarThisTurn && mpShotMode === key ? '#00ff88' : undefined}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 50px)', gap: 2 }}>
                 {targetSlot.grid.map((rowArr, ri) =>
                   rowArr.map((cell, ci) => (
@@ -3146,7 +3206,47 @@ export default function App() {
           ))}
         </div>
 
-        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} disabledModes={currentBindingVowActive ? ['f'] : []} destroyedModes={currentDestroyedGrids} />
+        {!mpFogOfWarThisTurn && (
+          <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} disabledModes={currentBindingVowActive ? ['f'] : []} destroyedModes={currentDestroyedGrids} />
+        )}
+
+        {(p1FogOfWarTurns > 0 || p2FogOfWarTurns > 0) && (
+          <div style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: '#8899cc',
+            letterSpacing: '0.1em',
+            padding: '6px 12px',
+            background: '#08080f',
+            border: '1px solid #8899cc44',
+            borderRadius: 4,
+            width: '100%',
+            maxWidth: 560,
+            display: 'flex',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}>
+            <span>🌫 FOG OF WAR</span>
+            {p1FogOfWarTurns > 0 && <span>P1: {p1FogOfWarTurns} turn{p1FogOfWarTurns !== 1 ? 's' : ''} remaining</span>}
+            {p2FogOfWarTurns > 0 && <span>P2: {p2FogOfWarTurns} turn{p2FogOfWarTurns !== 1 ? 's' : ''} remaining</span>}
+          </div>
+        )}
+        {mpFogOfWarThisTurn && (
+          <div style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: '#8899cc',
+            letterSpacing: '0.1em',
+            padding: '6px 12px',
+            background: '#08080f',
+            border: '1px solid #8899cc44',
+            borderRadius: 4,
+            width: '100%',
+            maxWidth: 560,
+          }}>
+            🌫 FOG OF WAR ACTIVE · grid hidden — firing in a random grid this turn
+          </div>
+        )}
 
         {currentBindingVowActive && (
           <div style={{
