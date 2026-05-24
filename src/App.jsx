@@ -1761,9 +1761,11 @@ function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, op
 }
 
 function MarauderPicker({ opponentPowers, onConfirm, onCancel }) {
-  const unused = opponentPowers.filter(p => !p.used);
-  const pool = unused.length > 0 ? unused : opponentPowers;
+  const stealable = opponentPowers.filter(p => p.id !== 'marauder');
+  const unused = stealable.filter(p => !p.used);
+  const pool = unused.length > 0 ? unused : stealable;
   const fallback = unused.length === 0;
+  const nothingToSteal = pool.length === 0;
   return (
     <div style={{
       marginTop: 12, width: '100%', maxWidth: 560,
@@ -1774,9 +1776,11 @@ function MarauderPicker({ opponentPowers, onConfirm, onCancel }) {
         MARAUDER — STEAL A POWER
       </div>
       <div style={{ fontSize: 11, color: '#885533', letterSpacing: '0.06em', marginBottom: 12 }}>
-        {fallback
-          ? 'Opponent used all powers — steal one back as a fresh copy.'
-          : 'Choose one of your opponent\'s remaining powers to steal.'}
+        {nothingToSteal
+          ? 'No stealable powers — opponent only has Marauder.'
+          : fallback
+            ? 'Opponent used all powers — steal one back as a fresh copy.'
+            : "Choose one of your opponent's remaining powers to steal."}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {pool.map((power, idx) => {
