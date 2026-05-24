@@ -1689,20 +1689,25 @@ function PartyPerryPicker({ onGuess, newPowers, onClose }) {
             CORRECT! +2 POWERS
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-            {newPowers.map((p, i) => (
-              <div key={i} style={{
-                background: '#0a1a0a',
-                border: '2px solid #44ff8888',
-                borderRadius: 6,
-                padding: '6px 12px',
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#44ff88',
-                letterSpacing: '0.08em',
-              }}>
-                {p.label}
-              </div>
-            ))}
+            {newPowers.map((p, i) => {
+              const rc = RARITY_CONFIG[p.rarity] || RARITY_CONFIG.common;
+              return (
+                <div key={i} style={{
+                  background: '#0a0a1a',
+                  border: `2px solid ${rc.color}88`,
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: rc.color,
+                  letterSpacing: '0.08em',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 8, opacity: 0.75, letterSpacing: '0.18em', marginBottom: 2 }}>{rc.label}</div>
+                  {p.label}
+                </div>
+              );
+            })}
           </div>
           <button
             onClick={onClose}
