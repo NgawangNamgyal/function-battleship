@@ -59,6 +59,12 @@ const SPIRAL_PRESETS = [
   { label: 'Counter-clockwise', fn: t => { const r = t / (2 * Math.PI); return { x: r * Math.cos(-t), y: r * Math.sin(-t) }; } },
 ];
 
+function availableGrids(destroyedGrids, bindingVowActive) {
+  return ['f', 'df', 'F'].filter(k =>
+    !destroyedGrids.includes(k) && !(bindingVowActive && k === 'f')
+  );
+}
+
 function rollPowers(count) {
   return Array.from({ length: count }, () => ({ ...POWERS[Math.floor(Math.random() * POWERS.length)], used: false }));
 }
@@ -1676,30 +1682,13 @@ function PartyPerryPicker({ onGuess, newPowers, onClose }) {
   );
 }
 
-function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, opponentDestroyedGrids = [], opponentBindingVowActive = false }) {
-  const [pickerError, setPickerError] = useState('');
+function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, opponentDestroyedGrids = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
     { key: 'F',  label: 'F(x)' },
   ];
-  // Grids the opponent can currently fire in
-  const opponentAvailable = grids
-    .map(g => g.key)
-    .filter(k => !opponentDestroyedGrids.includes(k) && !(opponentBindingVowActive && k === 'f'));
-  const lastRemainingGrid = opponentAvailable.length === 1 ? opponentAvailable[0] : null;
-
-  function handleGridClick(key) {
-    if (opponentDestroyedGrids.includes(key)) return;
-    if (key === lastRemainingGrid) {
-      setPickerError('Cannot destroy — all grids would be restricted');
-      return;
-    }
-    setPickerError('');
-    onSelectGrid(key);
-  }
-
-  const canConfirm = selectedGrid !== null && selectedGrid !== lastRemainingGrid && !opponentDestroyedGrids.includes(selectedGrid);
+  const canConfirm = selectedGrid !== null && !opponentDestroyedGrids.includes(selectedGrid);
   return (
     <div style={{
       marginTop: 12, width: '100%', maxWidth: 560,
@@ -1712,12 +1701,12 @@ function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, op
       <div style={{ fontSize: 11, color: '#884444', letterSpacing: '0.06em', marginBottom: 12 }}>
         Opponent cannot fire new shots in this grid for the rest of the round.
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: pickerError ? 8 : 14 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {grids.map(({ key, label }) => {
           const alreadyDestroyed = opponentDestroyedGrids.includes(key);
           const isSelected = selectedGrid === key && !alreadyDestroyed;
           return (
-            <button key={key} onClick={() => handleGridClick(key)}
+            <button key={key} onClick={() => !alreadyDestroyed && onSelectGrid(key)}
               disabled={alreadyDestroyed}
               title={alreadyDestroyed ? 'Already destroyed' : undefined}
               style={{
@@ -1735,11 +1724,6 @@ function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, op
           );
         })}
       </div>
-      {pickerError && (
-        <div style={{ fontSize: 11, color: '#ff4444', letterSpacing: '0.08em', marginBottom: 10 }}>
-          ⚠ {pickerError}
-        </div>
-      )}
       <div style={{ display: 'flex', gap: 8 }}>
         <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(selectedGrid)} style={{
           padding: '10px 28px',
@@ -2223,7 +2207,7 @@ export default function App() {
 
     if (power.id === 'bindingVow') {
       const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
-      if (currentDestroyedGrids.includes('df') && currentDestroyedGrids.includes('F')) {
+      if (availableGrids(currentDestroyedGrids, true).length === 0) {
         setMpPowerError('Cannot activate — all grids would be restricted');
         return;
       }
@@ -2304,12 +2288,20 @@ export default function App() {
 
   function activateOmnipotence(gridKey) {
     const isP1 = mpCurrentPlayer === 1;
+    const oppDestroyedGrids = isP1 ? p2DestroyedGrids : p1DestroyedGrids;
+    const oppBindingVow = isP1 ? p2BindingVowActive : p1BindingVowActive;
+    if (availableGrids([...oppDestroyedGrids, gridKey], oppBindingVow).length === 0) {
+      setMpPowerError('Cannot activate — all grids would be restricted');
+      return;
+    }
+    setMpPowerError('');
     const setPowers = isP1 ? setP1Powers : setP2Powers;
     const setOpponentDestroyedGrids = isP1 ? setP2DestroyedGrids : setP1DestroyedGrids;
     setPowers(prev => prev.map((p, i) => i === mpOmnipotencePendingIndex ? { ...p, used: true } : p));
     setOpponentDestroyedGrids(prev => prev.includes(gridKey) ? prev : [...prev, gridKey]);
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
   }
 
   function cancelOmnipotence() {
@@ -2812,7 +2804,6 @@ export default function App() {
     const currentBindingVowActive = isP1 ? p1BindingVowActive : p2BindingVowActive;
     const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
     const opponentDestroyedGrids = isP1 ? p2DestroyedGrids : p1DestroyedGrids;
-    const opponentBindingVowActive = isP1 ? p2BindingVowActive : p1BindingVowActive;
     const gridLabelsMap = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
 
     // ── Round/Match win screen ──
@@ -3177,7 +3168,6 @@ export default function App() {
             onConfirm={activateOmnipotence}
             onCancel={cancelOmnipotence}
             opponentDestroyedGrids={opponentDestroyedGrids}
-            opponentBindingVowActive={opponentBindingVowActive}
           />
         )}
 
