@@ -41,7 +41,8 @@ const POWERS = [
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
   { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
   { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
-  { id: 'omniscience',  label: 'OMNISCIENT',    desc: 'Choose a grid — see all 25 squares for 5 seconds' },
+  { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
+  { id: 'omnipotence',  label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
 ];
 
 const PARABOLA_PRESETS = [
@@ -733,7 +734,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, omnisciencePending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, omnisciencePending, omnipotencePending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -749,7 +750,8 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             (power.id === 'parabolaShot' && parabolaShotPending) ||
             (power.id === 'spiralShot' && spiralShotPending) ||
             (power.id === 'partyPerry' && partyPerryPending) ||
-            (power.id === 'omniscience' && omnisciencePending);
+            (power.id === 'omniscience' && omnisciencePending) ||
+            (power.id === 'omnipotence' && omnipotencePending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             power.id === 'bonus' ||
@@ -944,7 +946,7 @@ function FireGrid({ grid, shotMode, onFire, disabled }) {
   );
 }
 
-function ShotModeButtons({ shotMode, onChange, disabledModes = [] }) {
+function ShotModeButtons({ shotMode, onChange, disabledModes = [], destroyedModes = [] }) {
   const modes = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -953,20 +955,22 @@ function ShotModeButtons({ shotMode, onChange, disabledModes = [] }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
       {modes.map(({ key, label }) => {
-        const isDisabled = disabledModes.includes(key);
+        const isVowLocked = disabledModes.includes(key);
+        const isDestroyed = destroyedModes.includes(key);
+        const isDisabled = isVowLocked || isDestroyed;
         const isActive = shotMode === key;
         return (
           <button
             key={key}
             onClick={() => !isDisabled && onChange(key)}
             disabled={isDisabled}
-            title={isDisabled ? 'Restricted by Binding Vow' : undefined}
+            title={isDestroyed ? 'Grid destroyed by Omnipotence' : isVowLocked ? 'Restricted by Binding Vow' : undefined}
             style={{
               padding: '10px 20px',
               background: isActive ? '#00ff1122' : '#111124',
               border: `2px solid ${isActive ? '#00ff88' : isDisabled ? '#1a1a2a' : '#2a2a4a'}`,
               borderRadius: 6,
-              color: isActive ? '#00ff88' : isDisabled ? '#2a2a3a' : '#668',
+              color: isActive ? '#00ff88' : isDestroyed ? '#3a1010' : isVowLocked ? '#2a2a3a' : '#668',
               fontFamily: 'inherit',
               fontSize: 14,
               fontWeight: 700,
@@ -1672,7 +1676,92 @@ function PartyPerryPicker({ onGuess, newPowers, onClose }) {
   );
 }
 
-function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bindingVowActive = false }) {
+function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, opponentDestroyedGrids = [], opponentBindingVowActive = false }) {
+  const [pickerError, setPickerError] = useState('');
+  const grids = [
+    { key: 'f',  label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F',  label: 'F(x)' },
+  ];
+  // Grids the opponent can currently fire in
+  const opponentAvailable = grids
+    .map(g => g.key)
+    .filter(k => !opponentDestroyedGrids.includes(k) && !(opponentBindingVowActive && k === 'f'));
+  const lastRemainingGrid = opponentAvailable.length === 1 ? opponentAvailable[0] : null;
+
+  function handleGridClick(key) {
+    if (opponentDestroyedGrids.includes(key)) return;
+    if (key === lastRemainingGrid) {
+      setPickerError('Cannot destroy — all grids would be restricted');
+      return;
+    }
+    setPickerError('');
+    onSelectGrid(key);
+  }
+
+  const canConfirm = selectedGrid !== null && selectedGrid !== lastRemainingGrid && !opponentDestroyedGrids.includes(selectedGrid);
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#1a0505', border: '1px solid #ff444444',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ff4444', marginBottom: 10, fontWeight: 700 }}>
+        OMNIPOTENCE — SELECT GRID TO DESTROY
+      </div>
+      <div style={{ fontSize: 11, color: '#884444', letterSpacing: '0.06em', marginBottom: 12 }}>
+        Opponent cannot fire new shots in this grid for the rest of the round.
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: pickerError ? 8 : 14 }}>
+        {grids.map(({ key, label }) => {
+          const alreadyDestroyed = opponentDestroyedGrids.includes(key);
+          const isSelected = selectedGrid === key && !alreadyDestroyed;
+          return (
+            <button key={key} onClick={() => handleGridClick(key)}
+              disabled={alreadyDestroyed}
+              title={alreadyDestroyed ? 'Already destroyed' : undefined}
+              style={{
+                padding: '8px 16px',
+                background: isSelected ? '#2a0808' : '#100505',
+                border: `1px solid ${isSelected ? '#ff4444' : alreadyDestroyed ? '#1a1a2a' : '#3a1a1a'}`,
+                borderRadius: 4, color: isSelected ? '#ff4444' : alreadyDestroyed ? '#2a2a3a' : '#668',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: alreadyDestroyed ? 'not-allowed' : 'pointer', letterSpacing: '0.05em',
+                boxShadow: isSelected ? '0 0 8px #ff444433' : 'none',
+                transition: 'all 0.15s',
+                textDecoration: alreadyDestroyed ? 'line-through' : 'none',
+                opacity: alreadyDestroyed ? 0.4 : 1,
+              }}>{label}</button>
+          );
+        })}
+      </div>
+      {pickerError && (
+        <div style={{ fontSize: 11, color: '#ff4444', letterSpacing: '0.08em', marginBottom: 10 }}>
+          ⚠ {pickerError}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(selectedGrid)} style={{
+          padding: '10px 28px',
+          background: canConfirm ? '#2a0808' : '#100505',
+          border: `2px solid ${canConfirm ? '#ff4444' : '#3a1a1a'}`,
+          borderRadius: 6, color: canConfirm ? '#ff4444' : '#334',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+          cursor: canConfirm ? 'pointer' : 'default',
+          letterSpacing: '0.1em', boxShadow: canConfirm ? '0 0 12px #ff444433' : 'none',
+          transition: 'all 0.15s',
+        }}>DESTROY GRID →</button>
+        <button onClick={onCancel} style={{
+          padding: '10px 20px', background: 'none',
+          border: '1px solid #3a1a1a', borderRadius: 6, color: '#556',
+          fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', letterSpacing: '0.08em',
+        }}>CANCEL</button>
+      </div>
+    </div>
+  );
+}
+
+function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bindingVowActive = false, destroyedGrids = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -1691,21 +1780,23 @@ function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bi
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {grids.map(({ key, label }) => {
           const isVowLocked = bindingVowActive && key === 'f';
+          const isDestroyed = destroyedGrids.includes(key);
+          const isDisabled = isVowLocked || isDestroyed;
           const isSelected = selectedGrid === key;
           return (
-            <button key={key} onClick={() => !isVowLocked && onSelectGrid(key)} disabled={isVowLocked}
-              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+            <button key={key} onClick={() => !isDisabled && onSelectGrid(key)} disabled={isDisabled}
+              title={isDestroyed ? 'Grid destroyed by Omnipotence' : isVowLocked ? 'Restricted by Binding Vow' : undefined}
               style={{
                 padding: '8px 16px',
                 background: isSelected ? '#1a0030' : '#08000f',
-                border: `1px solid ${isSelected ? '#cc44ff' : isVowLocked ? '#1a1a2a' : '#2a1a3a'}`,
-                borderRadius: 4, color: isSelected ? '#cc44ff' : isVowLocked ? '#2a2a3a' : '#668',
+                border: `1px solid ${isSelected ? '#cc44ff' : isDisabled ? '#1a1a2a' : '#2a1a3a'}`,
+                borderRadius: 4, color: isSelected ? '#cc44ff' : isDisabled ? '#2a2a3a' : '#668',
                 fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
                 letterSpacing: '0.05em', boxShadow: isSelected ? '0 0 8px #cc44ff33' : 'none',
                 transition: 'all 0.15s',
-                textDecoration: isVowLocked ? 'line-through' : 'none',
-                opacity: isVowLocked ? 0.4 : 1,
+                textDecoration: isDisabled ? 'line-through' : 'none',
+                opacity: isDisabled ? 0.4 : 1,
               }}>{label}</button>
           );
         })}
@@ -1888,6 +1979,16 @@ export default function App() {
   const [mpOmniscienceActive, setMpOmniscienceActive] = useState(false);
   const [mpOmniscienceGrid, setMpOmniscienceGrid] = useState(null);
 
+  // ── Power error ──
+  const [mpPowerError, setMpPowerError] = useState('');
+
+  // ── Omnipotence ──
+  const [mpOmnipotencePending, setMpOmnipotencePending] = useState(false);
+  const [mpOmnipotencePendingIndex, setMpOmnipotencePendingIndex] = useState(null);
+  const [mpOmnipotenceGrid, setMpOmnipotenceGrid] = useState(null);
+  const [p1DestroyedGrids, setP1DestroyedGrids] = useState([]); // grids P1 can't fire in
+  const [p2DestroyedGrids, setP2DestroyedGrids] = useState([]); // grids P2 can't fire in
+
   // ── Navigation ──
 
   function handleDifficultySelect(diff) {
@@ -1971,6 +2072,11 @@ export default function App() {
     setMpOmnisciencePendingIndex(null);
     setMpOmniscienceActive(false);
     setMpOmniscienceGrid(null);
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
+    setP1DestroyedGrids([]);
+    setP2DestroyedGrids([]);
     setPhase('power-draw');
   }
 
@@ -2028,6 +2134,11 @@ export default function App() {
     setMpOmnisciencePendingIndex(null);
     setMpOmniscienceActive(false);
     setMpOmniscienceGrid(null);
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
+    setP1DestroyedGrids([]);
+    setP2DestroyedGrids([]);
     setPhase('mp');
   }
 
@@ -2082,6 +2193,7 @@ export default function App() {
     const setPowers = isP1 ? setP1Powers : setP2Powers;
     const power = powers[powerIndex];
     if (!power || power.used) return;
+    setMpPowerError('');
 
     if (power.id === 'trapCard') {
       setMpTrapCardPending(true);
@@ -2110,6 +2222,12 @@ export default function App() {
     }
 
     if (power.id === 'bindingVow') {
+      const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
+      if (currentDestroyedGrids.includes('df') && currentDestroyedGrids.includes('F')) {
+        setMpPowerError('Cannot activate — all grids would be restricted');
+        return;
+      }
+      setMpPowerError('');
       setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
       if (isP1) setP1BindingVowActive(true);
       else setP2BindingVowActive(true);
@@ -2128,6 +2246,13 @@ export default function App() {
       setMpOmnisciencePending(true);
       setMpOmnisciencePendingIndex(powerIndex);
       setMpOmniscienceGrid(null);
+      return;
+    }
+
+    if (power.id === 'omnipotence') {
+      setMpOmnipotencePending(true);
+      setMpOmnipotencePendingIndex(powerIndex);
+      setMpOmnipotenceGrid(null);
       return;
     }
 
@@ -2175,6 +2300,22 @@ export default function App() {
   function closeOmniscience() {
     setMpOmniscienceActive(false);
     setMpOmniscienceGrid(null);
+  }
+
+  function activateOmnipotence(gridKey) {
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    const setOpponentDestroyedGrids = isP1 ? setP2DestroyedGrids : setP1DestroyedGrids;
+    setPowers(prev => prev.map((p, i) => i === mpOmnipotencePendingIndex ? { ...p, used: true } : p));
+    setOpponentDestroyedGrids(prev => prev.includes(gridKey) ? prev : [...prev, gridKey]);
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+  }
+
+  function cancelOmnipotence() {
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
   }
 
   function confirmTrapCard(grid, col, row) {
@@ -2240,6 +2381,8 @@ export default function App() {
   function mpFireShot(col, row) {
     if (mpWinner || mpShotsFiredThisTurn >= mpShotsAllowedThisTurn) return;
     const isP1 = mpCurrentPlayer === 1;
+    const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
+    if (currentDestroyedGrids.includes(mpShotMode)) return;
     const targetSlot = isP1 ? p2Slot : p1Slot;
     const setTargetSlot = isP1 ? setP2Slot : setP1Slot;
 
@@ -2334,6 +2477,10 @@ export default function App() {
     setMpOmnisciencePendingIndex(null);
     setMpOmniscienceActive(false);
     setMpOmniscienceGrid(null);
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
+    setMpPowerError('');
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -2357,9 +2504,13 @@ export default function App() {
   function handlePassContinue() {
     const nextPlayer = mpPassTo;
     const nextBindingVow = nextPlayer === 1 ? p1BindingVowActive : p2BindingVowActive;
+    const nextDestroyedGrids = nextPlayer === 1 ? p1DestroyedGrids : p2DestroyedGrids;
     if (nextBindingVow) {
       setMpShotsAllowedThisTurn(2);
       setMpShotMode('df');
+    } else if (nextDestroyedGrids.includes('f')) {
+      const firstAvailable = ['f', 'df', 'F'].find(m => !nextDestroyedGrids.includes(m));
+      if (firstAvailable) setMpShotMode(firstAvailable);
     }
     setMpCurrentPlayer(nextPlayer);
     setMpPassTo(null);
@@ -2471,6 +2622,11 @@ export default function App() {
     setMpOmnisciencePendingIndex(null);
     setMpOmniscienceActive(false);
     setMpOmniscienceGrid(null);
+    setMpOmnipotencePending(false);
+    setMpOmnipotencePendingIndex(null);
+    setMpOmnipotenceGrid(null);
+    setP1DestroyedGrids([]);
+    setP2DestroyedGrids([]);
     setPhase('power-draw');
   }
 
@@ -2654,6 +2810,10 @@ export default function App() {
     const enemyLabel = isP1 ? 'PLAYER 2' : 'PLAYER 1';
     const diffLabel = DIFFICULTY[difficulty].label;
     const currentBindingVowActive = isP1 ? p1BindingVowActive : p2BindingVowActive;
+    const currentDestroyedGrids = isP1 ? p1DestroyedGrids : p2DestroyedGrids;
+    const opponentDestroyedGrids = isP1 ? p2DestroyedGrids : p1DestroyedGrids;
+    const opponentBindingVowActive = isP1 ? p2BindingVowActive : p1BindingVowActive;
+    const gridLabelsMap = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
 
     // ── Round/Match win screen ──
     if (mpWinner !== null) {
@@ -2851,7 +3011,7 @@ export default function App() {
           ))}
         </div>
 
-        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} disabledModes={currentBindingVowActive ? ['f'] : []} />
+        <ShotModeButtons shotMode={mpShotMode} onChange={setMpShotMode} disabledModes={currentBindingVowActive ? ['f'] : []} destroyedModes={currentDestroyedGrids} />
 
         {currentBindingVowActive && (
           <div style={{
@@ -2867,6 +3027,23 @@ export default function App() {
             maxWidth: 560,
           }}>
             ⛓ BINDING VOW ACTIVE · f(x) locked · 2 shots per turn
+          </div>
+        )}
+
+        {currentDestroyedGrids.length > 0 && (
+          <div style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: '#ff4444',
+            letterSpacing: '0.1em',
+            padding: '6px 12px',
+            background: '#1a0505',
+            border: '1px solid #ff444433',
+            borderRadius: 4,
+            width: '100%',
+            maxWidth: 560,
+          }}>
+            ☠ GRID DESTROYED · {currentDestroyedGrids.map(k => gridLabelsMap[k]).join(', ')} · cannot fire new shots there
           </div>
         )}
 
@@ -2890,10 +3067,22 @@ export default function App() {
           spiralShotPending={mpSpiralShotPending}
           partyPerryPending={mpPartyPerryPending}
           omnisciencePending={mpOmnisciencePending}
+          omnipotencePending={mpOmnipotencePending}
           heatCheckActive={mpHeatCheckActive}
           heatCheckMissed={mpHeatCheckMissed}
           bindingVowActive={currentBindingVowActive}
         />
+
+        {mpPowerError && (
+          <div style={{
+            marginBottom: 8, fontSize: 11, color: '#ff4444',
+            letterSpacing: '0.08em', padding: '6px 12px',
+            background: '#1a0505', border: '1px solid #ff444433',
+            borderRadius: 4, width: '100%', maxWidth: 560,
+          }}>
+            ⚠ {mpPowerError}
+          </div>
+        )}
 
         {(() => {
           const myTrap = isP1 ? p1TrapCard : p2TrapCard;
@@ -2969,6 +3158,7 @@ export default function App() {
             onConfirm={activateOmniscience}
             onCancel={cancelOmniscience}
             bindingVowActive={currentBindingVowActive}
+            destroyedGrids={currentDestroyedGrids}
           />
         )}
 
@@ -2977,6 +3167,17 @@ export default function App() {
             gridKey={mpOmniscienceGrid}
             targetSlot={targetSlot}
             onClose={closeOmniscience}
+          />
+        )}
+
+        {mpOmnipotencePending && (
+          <OmnipotencePicker
+            selectedGrid={mpOmnipotenceGrid}
+            onSelectGrid={setMpOmnipotenceGrid}
+            onConfirm={activateOmnipotence}
+            onCancel={cancelOmnipotence}
+            opponentDestroyedGrids={opponentDestroyedGrids}
+            opponentBindingVowActive={opponentBindingVowActive}
           />
         )}
 
