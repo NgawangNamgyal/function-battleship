@@ -33,20 +33,27 @@ const DIFFICULTY = {
 const FUNCTION_COLORS = ['#00ff88', '#ff6b6b', '#66b3ff', '#ffd700'];
 
 const POWERS = [
-  { id: 'reload',       label: 'RELOAD',        desc: '+1 shot this turn · stacks with other powers and itself' },
-  { id: 'parabolaShot', label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
-  { id: 'spiralShot',   label: 'SPIRAL SHOT',   desc: 'Scan a grid with an Archimedean spiral — shows all intersection points' },
-  { id: 'trapCard',     label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
-  { id: 'heatCheck',    label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
-  { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
-  { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
-  { id: 'glitch',       label: 'GLITCH',        desc: 'Auto-triggers on a wrong guess — you steal the bonus turns instead of your opponent getting them' },
-  { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
-  { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
-  { id: 'omnipotence',  label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
-  { id: 'marauder',     label: 'MARAUDER',      desc: "Steal one of your opponent's powers — they lose it, you gain it to use this round" },
-  { id: 'fogOfWar',    label: 'FOG OF WAR',    desc: "For 3 of your opponent's turns, their grid is randomly assigned and hidden — they can't see or choose it" },
+  { id: 'reload',       rarity: 'common',    label: 'RELOAD',        desc: '+1 shot this turn · stacks with other powers and itself' },
+  { id: 'trapCard',     rarity: 'common',    label: 'TRAP CARD',     desc: "Set a hidden trap square — ends opponent's turn if they fire there (you get 2 bonus turns)" },
+  { id: 'bonus',        rarity: 'uncommon',  label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
+  { id: 'parabolaShot', rarity: 'uncommon',  label: 'PARABOLA SHOT', desc: 'Scan a grid for intersecting functions' },
+  { id: 'heatCheck',    rarity: 'rare',      label: 'HEAT CHECK',    desc: 'Keep firing as long as you hit — miss stops shooting · caps at 3 shots · must activate before your first shot' },
+  { id: 'bindingVow',   rarity: 'rare',      label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
+  { id: 'partyPerry',   rarity: 'rare',      label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
+  { id: 'spiralShot',   rarity: 'rare',      label: 'SPIRAL SHOT',   desc: 'Scan a grid with an Archimedean spiral — shows all intersection points' },
+  { id: 'fogOfWar',     rarity: 'legendary', label: 'FOG OF WAR',    desc: "For 3 of your opponent's turns, their grid is randomly assigned and hidden — they can't see or choose it" },
+  { id: 'omniscience',  rarity: 'legendary', label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
+  { id: 'omnipotence',  rarity: 'legendary', label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
+  { id: 'glitch',       rarity: 'legendary', label: 'GLITCH',        desc: 'Auto-triggers on a wrong guess — you steal the bonus turns instead of your opponent getting them' },
+  { id: 'marauder',     rarity: 'legendary', label: 'MARAUDER',      desc: "Steal one of your opponent's powers — they lose it, you gain it to use this round" },
 ];
+
+const RARITY_CONFIG = {
+  common:    { label: 'COMMON',    color: '#999999' },
+  uncommon:  { label: 'UNCOMMON',  color: '#00cc66' },
+  rare:      { label: 'RARE',      color: '#4499ff' },
+  legendary: { label: 'LEGENDARY', color: '#ffd700' },
+};
 
 const PARABOLA_PRESETS = [
   { label: 'y = x²',      fn: x => x ** 2 },
@@ -69,7 +76,12 @@ function availableGrids(destroyedGrids, bindingVowActive) {
 }
 
 function rollPowers(count) {
-  return Array.from({ length: count }, () => ({ ...POWERS[Math.floor(Math.random() * POWERS.length)], used: false }));
+  return Array.from({ length: count }, () => {
+    const r = Math.random();
+    const rarity = r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary';
+    const pool = POWERS.filter(p => p.rarity === rarity);
+    return { ...pool[Math.floor(Math.random() * pool.length)], used: false };
+  });
 }
 
 function selectFunctions(difficulty) {
@@ -462,16 +474,22 @@ function PowerDrawScreen({ round, roundType, p1Powers, p2Powers, coinFlipWinner,
               <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.2em', marginBottom: 12 }}>
                 PLAYER {player}
               </div>
-              {powers.map((power, i) => (
-                <div key={i} style={{
-                  background: '#111124', border: '1px solid #2a2a6a',
-                  borderRadius: 4, padding: '8px 12px', marginBottom: 6,
-                  color: '#66b3ff', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
-                }}>
-                  {power.label}
-                  <div style={{ fontSize: 10, color: '#445', marginTop: 2, fontWeight: 400 }}>{power.desc}</div>
-                </div>
-              ))}
+              {powers.map((power, i) => {
+                const rc = RARITY_CONFIG[power.rarity] || RARITY_CONFIG.common;
+                return (
+                  <div key={i} style={{
+                    background: '#111124', border: `1px solid ${rc.color}55`,
+                    borderRadius: 4, padding: '8px 12px', marginBottom: 6,
+                    color: rc.color, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+                  }}>
+                    <div style={{ fontSize: 8, color: rc.color, letterSpacing: '0.2em', marginBottom: 3, opacity: 0.8 }}>
+                      {rc.label}
+                    </div>
+                    {power.label}
+                    <div style={{ fontSize: 10, color: '#445', marginTop: 2, fontWeight: 400 }}>{power.desc}</div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -620,8 +638,13 @@ function PowerTestSetupScreen({ difficulty, onStart, onBack }) {
                       border: `1px solid ${count > 0 ? '#66b3ff44' : '#1a1a3a'}`,
                       borderRadius: 6, padding: '7px 10px',
                     }}>
-                      <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: count > 0 ? '#66b3ff' : '#445', letterSpacing: '0.06em' }}>
-                        {power.label}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 8, color: (RARITY_CONFIG[power.rarity] || RARITY_CONFIG.common).color, letterSpacing: '0.18em', marginBottom: 1, opacity: 0.75 }}>
+                          {(RARITY_CONFIG[power.rarity] || RARITY_CONFIG.common).label}
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? '#66b3ff' : '#445', letterSpacing: '0.06em' }}>
+                          {power.label}
+                        </div>
                       </div>
                       <button onClick={() => changePowerCount(player, power.id, -1)} style={counterBtnStyle(count === 0)}>−</button>
                       <div style={{ width: 18, textAlign: 'center', fontSize: 13, fontWeight: 700, color: count > 0 ? '#66b3ff' : '#334' }}>
@@ -781,38 +804,44 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             (power.id === 'reload' && heatCheckOngoing) ||
             (power.id === 'bindingVow' && bindingVowActive);
           const disabled = power.used || isPending || cantActivate;
+          const rc = RARITY_CONFIG[power.rarity] || RARITY_CONFIG.common;
           let bg = '#0a0a2a', borderColor = '#2a2a6a', color = '#66b3ff';
           if (isHeatCheckOn)      { bg = '#1a0a00'; borderColor = '#ff880088'; color = '#ff8800'; }
           else if (isBindingVowOn){ bg = '#0d0814'; borderColor = '#a855f788'; color = '#a855f7'; }
           else if (power.used)    { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#334'; }
           else if (isPending)     { bg = '#1a0808'; borderColor = '#ff6b6b88'; color = '#ff6b6b'; }
           else if (cantActivate)  { bg = '#0a0a1a'; borderColor = '#1a1a3a'; color = '#445'; }
+          else                    { borderColor = `${rc.color}55`; color = rc.color; }
+          const labelText = isHeatCheckOn
+            ? `🔥 ${power.label} ACTIVE`
+            : isBindingVowOn
+              ? `⛓ ${power.label} ACTIVE`
+              : power.used
+                ? `✓ ${power.label}`
+                : isPending
+                  ? `↻ ${power.label} SELECTING...`
+                  : (power.id === 'bonus' || power.id === 'glitch')
+                    ? `AUTO: ${power.label}`
+                    : `USE: ${power.label}`;
           return (
             <button
               key={i}
               onClick={() => !disabled && onUse(i)}
               disabled={disabled}
               style={{
-                padding: '8px 16px', background: bg,
+                padding: '6px 14px 8px', background: bg,
                 border: `1px solid ${borderColor}`, borderRadius: 6, color,
                 fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
                 letterSpacing: '0.08em', textDecoration: (power.used && !isHeatCheckOn) ? 'line-through' : 'none',
-                transition: 'all 0.15s',
+                transition: 'all 0.15s', textAlign: 'left',
               }}
-              onMouseEnter={e => { if (!disabled) e.currentTarget.style.borderColor = '#66b3ff'; }}
+              onMouseEnter={e => { if (!disabled) e.currentTarget.style.borderColor = rc.color; }}
               onMouseLeave={e => { if (!disabled) e.currentTarget.style.borderColor = borderColor; }}
             >
-              {isHeatCheckOn
-                ? `🔥 ${power.label} ACTIVE`
-                : isBindingVowOn
-                  ? `⛓ ${power.label} ACTIVE`
-                  : power.used
-                    ? `✓ ${power.label}`
-                    : isPending
-                      ? `↻ ${power.label} SELECTING...`
-                      : (power.id === 'bonus' || power.id === 'glitch')
-                        ? `AUTO: ${power.label}`
-                        : `USE: ${power.label}`}
+              <div style={{ fontSize: 8, color: power.used ? '#334' : rc.color, letterSpacing: '0.18em', marginBottom: 2, opacity: power.used ? 1 : 0.75 }}>
+                {rc.label}
+              </div>
+              {labelText}
             </button>
           );
         })}
