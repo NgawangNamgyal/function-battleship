@@ -41,6 +41,7 @@ const POWERS = [
   { id: 'bindingVow',   label: 'BINDING VOW',   desc: 'Forfeit f(x) guesses for the rest of the round — gain 2 shots every turn (including bonus turns)' },
   { id: 'bonus',        label: 'BONUS',         desc: 'Auto-triggers on a correct function guess this turn — gain 2 extra shots immediately' },
   { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
+  { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
 ];
 
 const PARABOLA_PRESETS = [
@@ -732,7 +733,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, omnisciencePending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -747,7 +748,8 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             (power.id === 'trapCard' && trapCardPending) ||
             (power.id === 'parabolaShot' && parabolaShotPending) ||
             (power.id === 'spiralShot' && spiralShotPending) ||
-            (power.id === 'partyPerry' && partyPerryPending);
+            (power.id === 'partyPerry' && partyPerryPending) ||
+            (power.id === 'omniscience' && omnisciencePending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             power.id === 'bonus' ||
@@ -1670,6 +1672,130 @@ function PartyPerryPicker({ onGuess, newPowers, onClose }) {
   );
 }
 
+function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel }) {
+  const grids = [
+    { key: 'f',  label: 'f(x)' },
+    { key: 'df', label: "f′(x)" },
+    { key: 'F',  label: 'F(x)' },
+  ];
+  const canConfirm = selectedGrid !== null;
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#0a001a', border: '1px solid #cc44ff44',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#cc44ff', marginBottom: 10, fontWeight: 700 }}>
+        OMNISCIENCE — SELECT GRID TO REVEAL
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {grids.map(({ key, label }) => {
+          const isSelected = selectedGrid === key;
+          return (
+            <button key={key} onClick={() => onSelectGrid(key)} style={{
+              padding: '8px 16px',
+              background: isSelected ? '#1a0030' : '#08000f',
+              border: `1px solid ${isSelected ? '#cc44ff' : '#2a1a3a'}`,
+              borderRadius: 4, color: isSelected ? '#cc44ff' : '#668',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: '0.05em', boxShadow: isSelected ? '0 0 8px #cc44ff33' : 'none',
+              transition: 'all 0.15s',
+            }}>{label}</button>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button disabled={!canConfirm} onClick={() => canConfirm && onConfirm(selectedGrid)} style={{
+          padding: '10px 28px',
+          background: canConfirm ? '#1a0030' : '#08000f',
+          border: `2px solid ${canConfirm ? '#cc44ff' : '#2a1a3a'}`,
+          borderRadius: 6, color: canConfirm ? '#cc44ff' : '#334',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+          cursor: canConfirm ? 'pointer' : 'default',
+          letterSpacing: '0.1em', boxShadow: canConfirm ? '0 0 12px #cc44ff33' : 'none',
+          transition: 'all 0.15s',
+        }}>REVEAL FOR 5s →</button>
+        <button onClick={onCancel} style={{
+          padding: '10px 20px', background: 'none',
+          border: '1px solid #2a1a3a', borderRadius: 6, color: '#556',
+          fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', letterSpacing: '0.08em',
+        }}>CANCEL</button>
+      </div>
+    </div>
+  );
+}
+
+function OmniscienceRevealCell({ col, row, gridKey, activeFunctions }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const hits = activeFunctions
+      .filter(({ fn }) => doesFunctionPassThrough(fn[gridKey], col, row))
+      .map(({ fn, color }) => ({ fnId: fn.id, color }));
+    const fakeCellShots = { [gridKey]: { fired: true, hits } };
+    drawCell(canvasRef.current, gridKey, col, row, fakeCellShots, activeFunctions);
+  }, [col, row, gridKey, activeFunctions]);
+  return (
+    <canvas ref={canvasRef} width={48} height={48}
+      style={{ border: '1px solid #cc44ff44', borderRadius: 2, display: 'block' }}
+    />
+  );
+}
+
+function OmniscienceReveal({ gridKey, targetSlot, onClose }) {
+  const [secondsLeft, setSecondsLeft] = useState(5);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          clearInterval(interval);
+          onCloseRef.current();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.88)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 16,
+      fontFamily: "'Courier New', Courier, monospace",
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.3em', color: '#cc44ff', fontWeight: 700 }}>
+        OMNISCIENCE · {gridLabels[gridKey]} · FULL REVEAL
+      </div>
+      <div style={{
+        fontSize: 48, fontWeight: 900, color: '#cc44ff',
+        textShadow: '0 0 32px #cc44ffcc', letterSpacing: '0.1em',
+        lineHeight: 1,
+      }}>
+        {secondsLeft}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 52px)', gap: 4 }}>
+        {targetSlot.grid.map((rowArr, ri) =>
+          rowArr.map((_, ci) => (
+            <OmniscienceRevealCell
+              key={`${ri}-${ci}`}
+              col={ci} row={ri}
+              gridKey={gridKey}
+              activeFunctions={targetSlot.functions}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main App
 // ─────────────────────────────────────────────────────────────
@@ -1750,6 +1876,12 @@ export default function App() {
   const [mpPartyPerryPendingIndex, setMpPartyPerryPendingIndex] = useState(null);
   const [mpPartyPerryNewPowers, setMpPartyPerryNewPowers] = useState(null);
 
+  // ── Omniscience ──
+  const [mpOmnisciencePending, setMpOmnisciencePending] = useState(false);
+  const [mpOmnisciencePendingIndex, setMpOmnisciencePendingIndex] = useState(null);
+  const [mpOmniscienceActive, setMpOmniscienceActive] = useState(false);
+  const [mpOmniscienceGrid, setMpOmniscienceGrid] = useState(null);
+
   // ── Navigation ──
 
   function handleDifficultySelect(diff) {
@@ -1829,6 +1961,10 @@ export default function App() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceActive(false);
+    setMpOmniscienceGrid(null);
     setPhase('power-draw');
   }
 
@@ -1882,6 +2018,10 @@ export default function App() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceActive(false);
+    setMpOmniscienceGrid(null);
     setPhase('mp');
   }
 
@@ -1978,6 +2118,13 @@ export default function App() {
       return;
     }
 
+    if (power.id === 'omniscience') {
+      setMpOmnisciencePending(true);
+      setMpOmnisciencePendingIndex(powerIndex);
+      setMpOmniscienceGrid(null);
+      return;
+    }
+
     if (power.id === 'reload' && mpHeatCheckActive && !mpHeatCheckMissed && mpShotsFiredThisTurn < 3) return;
 
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
@@ -2001,6 +2148,27 @@ export default function App() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
+  }
+
+  function activateOmniscience(gridKey) {
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    setPowers(prev => prev.map((p, i) => i === mpOmnisciencePendingIndex ? { ...p, used: true } : p));
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceActive(true);
+    setMpOmniscienceGrid(gridKey);
+  }
+
+  function cancelOmniscience() {
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceGrid(null);
+  }
+
+  function closeOmniscience() {
+    setMpOmniscienceActive(false);
+    setMpOmniscienceGrid(null);
   }
 
   function confirmTrapCard(grid, col, row) {
@@ -2156,6 +2324,10 @@ export default function App() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceActive(false);
+    setMpOmniscienceGrid(null);
 
     if (wrongGuess && mpBonusTurnsRemaining > 0) {
       setMpBonusTurnsRemaining(0);
@@ -2289,6 +2461,10 @@ export default function App() {
     setMpPartyPerryPending(false);
     setMpPartyPerryPendingIndex(null);
     setMpPartyPerryNewPowers(null);
+    setMpOmnisciencePending(false);
+    setMpOmnisciencePendingIndex(null);
+    setMpOmniscienceActive(false);
+    setMpOmniscienceGrid(null);
     setPhase('power-draw');
   }
 
@@ -2707,6 +2883,7 @@ export default function App() {
           parabolaShotPending={mpParabolaShotPending}
           spiralShotPending={mpSpiralShotPending}
           partyPerryPending={mpPartyPerryPending}
+          omnisciencePending={mpOmnisciencePending}
           heatCheckActive={mpHeatCheckActive}
           heatCheckMissed={mpHeatCheckMissed}
           bindingVowActive={currentBindingVowActive}
@@ -2777,6 +2954,23 @@ export default function App() {
 
         {mpPartyPerryPending && (
           <PartyPerryPicker onGuess={confirmPartyPerry} newPowers={mpPartyPerryNewPowers} onClose={closePartyPerry} />
+        )}
+
+        {mpOmnisciencePending && (
+          <OmnisciencePicker
+            selectedGrid={mpOmniscienceGrid}
+            onSelectGrid={setMpOmniscienceGrid}
+            onConfirm={activateOmniscience}
+            onCancel={cancelOmniscience}
+          />
+        )}
+
+        {mpOmniscienceActive && (
+          <OmniscienceReveal
+            gridKey={mpOmniscienceGrid}
+            targetSlot={targetSlot}
+            onClose={closeOmniscience}
+          />
         )}
 
         {(mpParabolaShotPending || mpSpiralShotPending || (mpShotsFiredThisTurn > 0 && (mpShotsFiredThisTurn >= mpShotsAllowedThisTurn || mpHeatCheckMissed))) && (
