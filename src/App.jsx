@@ -44,6 +44,7 @@ const POWERS = [
   { id: 'partyPerry',   label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
   { id: 'omniscience',  label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
   { id: 'omnipotence',  label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
+  { id: 'marauder',     label: 'MARAUDER',      desc: "Steal one of your opponent's powers — they lose it, you gain it to use this round" },
 ];
 
 const PARABOLA_PRESETS = [
@@ -752,7 +753,7 @@ function BackButton({ label, onClick }) {
   );
 }
 
-function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, omnisciencePending, omnipotencePending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
+function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending, parabolaShotPending, spiralShotPending, partyPerryPending, omnisciencePending, omnipotencePending, marauderPending, heatCheckActive, heatCheckMissed, bindingVowActive }) {
   if (!powers || powers.length === 0) return null;
   return (
     <div style={{ marginBottom: 12, width: '100%', maxWidth: 560 }}>
@@ -769,7 +770,8 @@ function PowersPanel({ powers, onUse, shotsAllowed, shotsFired, trapCardPending,
             (power.id === 'spiralShot' && spiralShotPending) ||
             (power.id === 'partyPerry' && partyPerryPending) ||
             (power.id === 'omniscience' && omnisciencePending) ||
-            (power.id === 'omnipotence' && omnipotencePending);
+            (power.id === 'omnipotence' && omnipotencePending) ||
+            (power.id === 'marauder' && marauderPending);
           const heatCheckOngoing = heatCheckActive && !heatCheckMissed && shotsFired < 3;
           const cantActivate =
             power.id === 'bonus' ||
@@ -1758,6 +1760,54 @@ function OmnipotencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, op
   );
 }
 
+function MarauderPicker({ opponentPowers, onConfirm, onCancel }) {
+  const unused = opponentPowers.filter(p => !p.used);
+  const pool = unused.length > 0 ? unused : opponentPowers;
+  const fallback = unused.length === 0;
+  return (
+    <div style={{
+      marginTop: 12, width: '100%', maxWidth: 560,
+      background: '#0a0f1a', border: '1px solid #ff880044',
+      borderRadius: 8, padding: '12px 16px',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#ff8800', marginBottom: 8, fontWeight: 700 }}>
+        MARAUDER — STEAL A POWER
+      </div>
+      <div style={{ fontSize: 11, color: '#885533', letterSpacing: '0.06em', marginBottom: 12 }}>
+        {fallback
+          ? 'Opponent used all powers — steal one back as a fresh copy.'
+          : 'Choose one of your opponent\'s remaining powers to steal.'}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {pool.map((power, idx) => {
+          const originalIdx = opponentPowers.indexOf(power);
+          return (
+            <button key={idx} onClick={() => onConfirm(originalIdx)}
+              title={power.desc}
+              style={{
+                padding: '8px 16px',
+                background: '#0d1020',
+                border: '1px solid #ff880055',
+                borderRadius: 6, color: '#ff8800',
+                fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer', letterSpacing: '0.08em',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#ff8800'; e.currentTarget.style.background = '#1a1000'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#ff880055'; e.currentTarget.style.background = '#0d1020'; }}
+            >{power.label}</button>
+          );
+        })}
+      </div>
+      <button onClick={onCancel} style={{
+        padding: '8px 20px', background: 'none',
+        border: '1px solid #3a2a1a', borderRadius: 6, color: '#556',
+        fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', letterSpacing: '0.08em',
+      }}>CANCEL</button>
+    </div>
+  );
+}
+
 function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bindingVowActive = false, destroyedGrids = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
@@ -1990,6 +2040,10 @@ export default function App() {
   const [p1DestroyedGrids, setP1DestroyedGrids] = useState([]); // grids P1 can't fire in
   const [p2DestroyedGrids, setP2DestroyedGrids] = useState([]); // grids P2 can't fire in
 
+  // ── Marauder ──
+  const [mpMarauderPending, setMpMarauderPending] = useState(false);
+  const [mpMarauderPendingIndex, setMpMarauderPendingIndex] = useState(null);
+
   // ── Navigation ──
 
   function handleDifficultySelect(diff) {
@@ -2078,6 +2132,8 @@ export default function App() {
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
     setMpOmnipotenceGrid(null);
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
     setPhase('power-draw');
@@ -2142,6 +2198,8 @@ export default function App() {
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
     setMpOmnipotenceGrid(null);
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
     setPhase('mp');
@@ -2261,6 +2319,12 @@ export default function App() {
       return;
     }
 
+    if (power.id === 'marauder') {
+      setMpMarauderPending(true);
+      setMpMarauderPendingIndex(powerIndex);
+      return;
+    }
+
     if (power.id === 'reload' && mpHeatCheckActive && !mpHeatCheckMissed && mpShotsFiredThisTurn < 3) return;
 
     setPowers(prev => prev.map((p, i) => i === powerIndex ? { ...p, used: true } : p));
@@ -2329,6 +2393,31 @@ export default function App() {
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
     setMpOmnipotenceGrid(null);
+  }
+
+  function confirmMarauder(opponentPowerIndex) {
+    const isP1 = mpCurrentPlayer === 1;
+    const setPowers = isP1 ? setP1Powers : setP2Powers;
+    const setOpponentPowers = isP1 ? setP2Powers : setP1Powers;
+    const opponentPowers = isP1 ? p2Powers : p1Powers;
+    const stolen = opponentPowers[opponentPowerIndex];
+    if (!stolen) return;
+    setMpPowerError('');
+    // Mark marauder as used
+    setPowers(prev => prev.map((p, i) => i === mpMarauderPendingIndex ? { ...p, used: true } : p));
+    // Mark opponent's power as used (if not already)
+    if (!stolen.used) {
+      setOpponentPowers(prev => prev.map((p, i) => i === opponentPowerIndex ? { ...p, used: true } : p));
+    }
+    // Give current player a fresh copy of the stolen power
+    setPowers(prev => [...prev, { ...stolen, used: false }]);
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
+  }
+
+  function cancelMarauder() {
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
   }
 
   function confirmTrapCard(grid, col, row) {
@@ -2493,6 +2582,8 @@ export default function App() {
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
     setMpOmnipotenceGrid(null);
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
     setMpPowerError('');
 
     if (wrongGuess && glitchTriggered) {
@@ -2664,6 +2755,8 @@ export default function App() {
     setMpOmnipotencePending(false);
     setMpOmnipotencePendingIndex(null);
     setMpOmnipotenceGrid(null);
+    setMpMarauderPending(false);
+    setMpMarauderPendingIndex(null);
     setP1DestroyedGrids([]);
     setP2DestroyedGrids([]);
     setPhase('power-draw');
@@ -3123,6 +3216,7 @@ export default function App() {
           partyPerryPending={mpPartyPerryPending}
           omnisciencePending={mpOmnisciencePending}
           omnipotencePending={mpOmnipotencePending}
+          marauderPending={mpMarauderPending}
           heatCheckActive={mpHeatCheckActive}
           heatCheckMissed={mpHeatCheckMissed}
           bindingVowActive={currentBindingVowActive}
@@ -3232,6 +3326,14 @@ export default function App() {
             onConfirm={activateOmnipotence}
             onCancel={cancelOmnipotence}
             opponentDestroyedGrids={opponentDestroyedGrids}
+          />
+        )}
+
+        {mpMarauderPending && (
+          <MarauderPicker
+            opponentPowers={isP1 ? p2Powers : p1Powers}
+            onConfirm={confirmMarauder}
+            onCancel={cancelMarauder}
           />
         )}
 
