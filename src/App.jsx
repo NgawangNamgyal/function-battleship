@@ -42,7 +42,7 @@ const POWERS = [
   { id: 'partyPerry',   rarity: 'rare',      label: 'PARTY PERRY',   desc: "Guess how many hats Perry has — get it right for 2 new powers" },
   { id: 'spiralShot',   rarity: 'rare',      label: 'SPIRAL SHOT',   desc: 'Scan a grid with an Archimedean spiral — shows all intersection points' },
   { id: 'fogOfWar',     rarity: 'legendary', label: 'FOG OF WAR',    desc: "For 3 of your opponent's turns, their grid is randomly assigned and hidden — they can't see or choose it" },
-  { id: 'omniscience',  rarity: 'legendary', label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 5 seconds' },
+  { id: 'omniscience',  rarity: 'legendary', label: 'OMNISCIENCE',   desc: 'Choose a grid — see all 25 squares for 3 seconds' },
   { id: 'omnipotence',  rarity: 'legendary', label: 'OMNIPOTENCE',   desc: "Destroy one of your opponent's grids — they can't fire in it this round" },
   { id: 'glitch',       rarity: 'legendary', label: 'GLITCH',        desc: 'Auto-triggers on a wrong guess — you steal the bonus turns instead of your opponent getting them' },
   { id: 'marauder',     rarity: 'legendary', label: 'MARAUDER',      desc: "Steal one of your opponent's powers — they lose it, you gain it to use this round" },
@@ -2105,7 +2105,7 @@ function OmnisciencePicker({ selectedGrid, onSelectGrid, onConfirm, onCancel, bi
           cursor: canConfirm ? 'pointer' : 'default',
           letterSpacing: '0.1em', boxShadow: canConfirm ? '0 0 12px #cc44ff33' : 'none',
           transition: 'all 0.15s',
-        }}>REVEAL FOR 5s →</button>
+        }}>REVEAL FOR 3s →</button>
         <button onClick={onCancel} style={{
           padding: '10px 20px', background: 'none',
           border: '1px solid #2a1a3a', borderRadius: 6, color: '#556',
@@ -2134,7 +2134,7 @@ function OmniscienceRevealCell({ col, row, gridKey, activeFunctions }) {
 }
 
 function OmniscienceReveal({ gridKey, targetSlot, onClose }) {
-  const [secondsLeft, setSecondsLeft] = useState(5);
+  const [secondsLeft, setSecondsLeft] = useState(3);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
