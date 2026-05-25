@@ -2530,7 +2530,14 @@ export default function App() {
     setBrRound(nextRound);
     setBrRoundFinishOrder([]);
     setBrPassAnnouncement('');
-    const updated = playersAfterElim.map(p => ({
+    // Shuffle active players so turn order is randomized each round
+    const active = playersAfterElim.filter(p => p.active);
+    for (let i = active.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [active[i], active[j]] = [active[j], active[i]];
+    }
+    const shuffled = [...active];
+    const updated = shuffled.map(p => ({
       ...p,
       finishedThisRound: false,
       finishOrder: null,
