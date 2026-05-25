@@ -322,10 +322,148 @@ function GraphCell({ shotType, col, row, cellShots, activeFunctions }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Help Modal
+// ─────────────────────────────────────────────────────────────
+
+function RulesContent() {
+  const section = (title, items) => (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#00ff88', marginBottom: 10, fontWeight: 700 }}>
+        {title}
+      </div>
+      {items.map((item, i) => (
+        <div key={i} style={{ fontSize: 12, color: '#aac', letterSpacing: '0.03em', lineHeight: 1.7, marginBottom: 6, paddingLeft: 12, borderLeft: '2px solid #1e1e3a' }}>
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div>
+      {section('THE GRID', [
+        'Each player has a 5×5 grid spanning x ∈ [−2.5, 2.5] and y ∈ [−2.5, 2.5].',
+        'Hidden functions are plotted across three views: f(x), f′(x) (derivative), and F(x) (antiderivative).',
+        'Fire shots at cells to reveal curve segments. A hit (●) means a function passes through that cell.',
+      ])}
+      {section('SHOOTING', [
+        'Select a grid view — f(x), f′(x), or F(x) — then click a cell to fire.',
+        'Green (●) = hit, a function curve passes through that region.',
+        'Red (×) = miss, no function passes through that region.',
+        'Each turn you get 1 shot by default. Powers can grant extra shots.',
+      ])}
+      {section('IDENTIFYING FUNCTIONS', [
+        'Use the Function Bank to guess which function(s) are hidden.',
+        'Correct guess: the function is revealed. Identify all to win the round.',
+        'Wrong guess (1v1): your opponent gets a bonus turn.',
+        'Wrong guess (Battle Royale): the current player\'s turn ends and the next player gets a bonus.',
+      ])}
+      {section('GAME MODES', [
+        'SOLO — Find all hidden functions on your own, no opponent.',
+        '1v1 LIGHTNING — One round, first to identify all enemy functions wins.',
+        '1v1 NORMAL — Best of 3 rounds, first to 2 wins takes the match.',
+        'BATTLE ROYALE — 3–5 players each racing their own grid. Last to finish each round is eliminated. Final survivor wins.',
+      ])}
+      {section('DIFFICULTY', [
+        'EASY — 1 function from a basic set (x², x³, sin(x), eˣ, √x).',
+        'MEDIUM — 2 functions, including domain-restricted curves like ln(x) and 1/x.',
+        'HARD — 3 functions with asymptotes, product functions, and trig.',
+        'CHAOS — 4 functions from the full library, including exotic forms like sin(x)/x and arcsin(x).',
+      ])}
+      {section('POWERS', [
+        'Each player draws 1 power at the start of every round (or more via coin flip / Party Perry).',
+        'Powers are one-time-use unless noted. BONUS and GLITCH are passive — they trigger automatically.',
+        'Double Rarity Odds (optional toggle) shifts the rarity distribution toward Rare and Legendary.',
+      ])}
+    </div>
+  );
+}
+
+function PowersContent() {
+  const order = ['legendary', 'rare', 'uncommon', 'common'];
+  return (
+    <div>
+      {order.map(rarity => {
+        const rc = RARITY_CONFIG[rarity];
+        const powers = POWERS.filter(p => p.rarity === rarity);
+        return (
+          <div key={rarity} style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.25em', color: rc.color, marginBottom: 10, fontWeight: 700, opacity: 0.9 }}>
+              ── {rc.label} ──
+            </div>
+            {powers.map(power => (
+              <div key={power.id} style={{
+                marginBottom: 8, padding: '10px 14px',
+                background: '#07070f', border: `1px solid ${rc.color}33`,
+                borderRadius: 6,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: rc.color, letterSpacing: '0.08em', marginBottom: 5 }}>
+                  {power.label}
+                </div>
+                <div style={{ fontSize: 11, color: '#889', lineHeight: 1.55, letterSpacing: '0.02em' }}>
+                  {power.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HelpModal({ onClose }) {
+  const [tab, setTab] = useState('rules');
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(5,5,12,0.93)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      fontFamily: "'Courier New', Courier, monospace",
+      overflowY: 'auto', padding: '24px 16px',
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 600,
+        background: '#0d0d1a', border: '1px solid #2a2a4a',
+        borderRadius: 10, overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid #1e1e3a',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '0.2em', color: '#00ff88' }}>
+            HELP
+          </div>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', color: '#445',
+            fontFamily: 'inherit', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1,
+          }}>×</button>
+        </div>
+        <div style={{ display: 'flex', borderBottom: '1px solid #1e1e3a' }}>
+          {[['rules', 'RULES'], ['powers', 'POWERS']].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)} style={{
+              flex: 1, padding: '10px 0',
+              background: tab === key ? '#111124' : 'none',
+              border: 'none',
+              borderBottom: tab === key ? '2px solid #00ff88' : '2px solid transparent',
+              color: tab === key ? '#00ff88' : '#445',
+              fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.15em', cursor: 'pointer',
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ padding: '20px', overflowY: 'auto', maxHeight: '72vh' }}>
+          {tab === 'rules' ? <RulesContent /> : <PowersContent />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Screens
 // ─────────────────────────────────────────────────────────────
 
-function DifficultyScreen({ onSelect }) {
+function DifficultyScreen({ onSelect, onHelp, onPowerTest }) {
   const tiers = [
     { key: 'easy',   label: 'Easy',   desc: '1 function · familiar curves' },
     { key: 'medium', label: 'Medium', desc: '2 functions · domain restrictions' },
@@ -340,7 +478,36 @@ function DifficultyScreen({ onSelect }) {
         {tiers.map(t => (
           <MenuButton key={t.key} label={t.label} desc={t.desc} onClick={() => onSelect(t.key)} />
         ))}
+        <div style={{ borderTop: '1px solid #1e1e3a', marginTop: 4, paddingTop: 10, display: 'flex', gap: 8 }}>
+          <button
+            onClick={onPowerTest}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#66b3ff'; e.currentTarget.style.boxShadow = '0 0 10px #66b3ff22'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a4a'; e.currentTarget.style.boxShadow = 'none'; }}
+            style={{
+              flex: 1, padding: '12px 16px', background: '#0d0d1a', border: '2px solid #2a2a4a',
+              borderRadius: 8, color: '#66b3ff', fontFamily: 'inherit', fontSize: 13,
+              cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              transition: 'border-color 0.15s, box-shadow 0.15s', fontWeight: 700, letterSpacing: '0.08em',
+            }}
+          >
+            <span>POWER TEST</span>
+            <span style={{ fontSize: 11, color: '#445', fontWeight: 400 }}>Try any power, any function</span>
+          </button>
+        </div>
       </div>
+      <button
+        onClick={onHelp}
+        style={{
+          marginTop: 8, background: 'none', border: '1px solid #1e1e3a',
+          borderRadius: 4, color: '#445', fontFamily: 'inherit', fontSize: 11,
+          letterSpacing: '0.12em', cursor: 'pointer', padding: '6px 20px',
+          transition: 'color 0.15s, border-color 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = '#00ff88'; e.currentTarget.style.borderColor = '#00ff8844'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = '#445'; e.currentTarget.style.borderColor = '#1e1e3a'; }}
+      >
+        ? HELP &amp; RULES
+      </button>
     </div>
   );
 }
@@ -350,7 +517,6 @@ function ModeSelectScreen({ difficulty, onSelect, onBack }) {
     { key: 'solo',         label: 'SOLO',          desc: 'Identify the hidden functions' },
     { key: '1v1',          label: '1v1',           desc: 'Pass-and-play against a friend' },
     { key: 'battleRoyale', label: 'BATTLE ROYALE', desc: '3–5 players · last to finish is eliminated' },
-    { key: 'powertest',    label: 'POWER TEST',    desc: 'Pick any powers and test them' },
   ];
   return (
     <div style={centeredPageStyle()}>
@@ -884,7 +1050,7 @@ function PowerTestSetupScreen({ difficulty, onStart, onBack }) {
       >
         START TEST →
       </button>
-      <BackButton label="← CHANGE MODE" onClick={onBack} />
+      <BackButton label="← BACK TO MENU" onClick={onBack} />
     </div>
   );
 }
@@ -2196,6 +2362,7 @@ export default function App() {
   const [phase, setPhase] = useState('difficulty');
   const [difficulty, setDifficulty] = useState(null);
   const [gameMode, setGameMode] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   // ── Solo state ──
   const [activeFunctions, setActiveFunctions] = useState([]);
@@ -3697,7 +3864,16 @@ export default function App() {
   // Routing
   // ─────────────────────────────────────────────────────────────
 
-  if (phase === 'difficulty') return <DifficultyScreen onSelect={handleDifficultySelect} />;
+  if (phase === 'difficulty') return (
+    <>
+      <DifficultyScreen
+        onSelect={handleDifficultySelect}
+        onHelp={() => setShowHelp(true)}
+        onPowerTest={() => { setDifficulty('easy'); setGameMode('powertest'); setPhase('power-test-setup'); }}
+      />
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+    </>
+  );
 
   if (phase === 'mode') {
     return (
@@ -3722,9 +3898,9 @@ export default function App() {
   if (phase === 'power-test-setup') {
     return (
       <PowerTestSetupScreen
-        difficulty={difficulty}
+        difficulty={difficulty || 'easy'}
         onStart={startPowerTestGame}
-        onBack={() => setPhase('mode')}
+        onBack={() => setPhase('difficulty')}
       />
     );
   }
@@ -3768,6 +3944,20 @@ export default function App() {
         alignItems: 'center',
         padding: '24px 16px',
       }}>
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+        <button
+          onClick={() => setShowHelp(true)}
+          style={{
+            position: 'fixed', top: 14, right: 14, zIndex: 50,
+            background: '#0d0d1a', border: '1px solid #2a2a4a',
+            borderRadius: 20, color: '#445', fontFamily: 'inherit',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            padding: '5px 13px', letterSpacing: '0.1em',
+            transition: 'color 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#00ff88'; e.currentTarget.style.borderColor = '#00ff8844'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#445'; e.currentTarget.style.borderColor = '#2a2a4a'; }}
+        >? HELP</button>
         <div style={{ marginBottom: 24, textAlign: 'center' }}>
           <h1 style={{
             fontSize: 28,
@@ -4029,6 +4219,20 @@ export default function App() {
         alignItems: 'center',
         padding: '24px 16px',
       }}>
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+        <button
+          onClick={() => setShowHelp(true)}
+          style={{
+            position: 'fixed', top: 14, right: 14, zIndex: 50,
+            background: '#0d0d1a', border: '1px solid #2a2a4a',
+            borderRadius: 20, color: '#445', fontFamily: 'inherit',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            padding: '5px 13px', letterSpacing: '0.1em',
+            transition: 'color 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#00ff88'; e.currentTarget.style.borderColor = '#00ff8844'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#445'; e.currentTarget.style.borderColor = '#2a2a4a'; }}
+        >? HELP</button>
         <div style={{ marginBottom: 24, textAlign: 'center' }}>
           <h1 style={{
             fontSize: 28,
@@ -4497,6 +4701,21 @@ export default function App() {
       <div style={{ minHeight: '100vh', background: '#0a0a0f', color: '#e0e0e0',
         fontFamily: "'Courier New', Courier, monospace",
         display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px' }}>
+
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+        <button
+          onClick={() => setShowHelp(true)}
+          style={{
+            position: 'fixed', top: 14, right: 14, zIndex: 50,
+            background: '#0d0d1a', border: '1px solid #2a2a4a',
+            borderRadius: 20, color: '#445', fontFamily: 'inherit',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            padding: '5px 13px', letterSpacing: '0.1em',
+            transition: 'color 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#ff6b6b'; e.currentTarget.style.borderColor = '#ff6b6b44'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#445'; e.currentTarget.style.borderColor = '#2a2a4a'; }}
+        >? HELP</button>
 
         <div style={{ marginBottom: 12, textAlign: 'center' }}>
           <h1 style={{ fontSize: 28, letterSpacing: '0.2em', color: '#ff6b6b',
