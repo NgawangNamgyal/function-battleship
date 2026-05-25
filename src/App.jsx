@@ -75,20 +75,24 @@ function availableGrids(destroyedGrids, bindingVowActive) {
   );
 }
 
-function rollPowers(count) {
+function rollPowers(count, doubled = false) {
   return Array.from({ length: count }, () => {
     const r = Math.random();
-    const rarity = r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary';
+    const rarity = doubled
+      ? (r < 0.10 ? 'common' : r < 0.40 ? 'uncommon' : r < 0.80 ? 'rare' : 'legendary')
+      : (r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary');
     const pool = POWERS.filter(p => p.rarity === rarity);
     return { ...pool[Math.floor(Math.random() * pool.length)], used: false };
   });
 }
 
-function rollBrPowers(count) {
+function rollBrPowers(count, doubled = false) {
   const pool = POWERS.filter(p => p.id !== 'trapCard');
   return Array.from({ length: count }, () => {
     const r = Math.random();
-    const rarity = r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary';
+    const rarity = doubled
+      ? (r < 0.10 ? 'common' : r < 0.40 ? 'uncommon' : r < 0.80 ? 'rare' : 'legendary')
+      : (r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary');
     const tier = pool.filter(p => p.rarity === rarity);
     const src = tier.length > 0 ? tier : pool;
     return { ...src[Math.floor(Math.random() * src.length)], used: false };
@@ -366,6 +370,7 @@ function ModeSelectScreen({ difficulty, onSelect, onBack }) {
 }
 
 function RoundTypeScreen({ difficulty, onSelect, onBack }) {
+  const [doubleRarity, setDoubleRarity] = useState(false);
   const types = [
     { key: 'lightning', label: 'LIGHTNING', desc: 'Single round · first to identify wins' },
     { key: 'normal',    label: 'NORMAL',    desc: 'Best of 3 · first to 2 round wins' },
@@ -379,8 +384,26 @@ function RoundTypeScreen({ difficulty, onSelect, onBack }) {
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 320 }}>
         {types.map(t => (
-          <MenuButton key={t.key} label={t.label} desc={t.desc} onClick={() => onSelect(t.key)} />
+          <MenuButton key={t.key} label={t.label} desc={t.desc} onClick={() => onSelect(t.key, doubleRarity)} />
         ))}
+      </div>
+      <div style={{ marginTop: 12, marginBottom: 4, width: 320 }}>
+        <button onClick={() => setDoubleRarity(p => !p)} style={{
+          width: '100%', padding: '10px 16px',
+          background: doubleRarity ? '#0a1020' : '#0d0d1a',
+          border: `2px solid ${doubleRarity ? '#ffd700' : '#2a2a4a'}`,
+          borderRadius: 6, color: doubleRarity ? '#ffd700' : '#557',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>★ DOUBLE RARITY ODDS</span>
+          <span>{doubleRarity ? 'ON' : 'OFF'}</span>
+        </button>
+        {doubleRarity && (
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', marginTop: 4, textAlign: 'center' }}>
+            COMMON 10% · UNCOMMON 30% · RARE 40% · LEGENDARY 20%
+          </div>
+        )}
       </div>
       <BackButton label="← CHANGE MODE" onClick={onBack} />
     </div>
@@ -391,9 +414,10 @@ function BattleRoyaleSetupScreen({ difficulty, onStart, onBack }) {
   const [count, setCount] = useState(3);
   const [names, setNames] = useState(['', '', '', '', '']);
   const [powersEnabled, setPowersEnabled] = useState(true);
+  const [doubleRarity, setDoubleRarity] = useState(false);
   function handleStart() {
     const playerNames = names.slice(0, count).map((n, i) => n.trim() || `Player ${i + 1}`);
-    onStart(playerNames, powersEnabled);
+    onStart(playerNames, powersEnabled, doubleRarity);
   }
   return (
     <div style={centeredPageStyle()}>
@@ -430,7 +454,7 @@ function BattleRoyaleSetupScreen({ difficulty, onStart, onBack }) {
           />
         ))}
       </div>
-      <div style={{ marginBottom: 20, width: 320 }}>
+      <div style={{ marginBottom: 20, width: 320, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button onClick={() => setPowersEnabled(p => !p)} style={{
           width: '100%', padding: '10px 16px',
           background: powersEnabled ? '#0a1020' : '#0d0d1a',
@@ -442,6 +466,22 @@ function BattleRoyaleSetupScreen({ difficulty, onStart, onBack }) {
           <span>⚡ POWERS</span>
           <span>{powersEnabled ? 'ENABLED' : 'DISABLED'}</span>
         </button>
+        <button onClick={() => setDoubleRarity(p => !p)} style={{
+          width: '100%', padding: '10px 16px',
+          background: doubleRarity ? '#0a1020' : '#0d0d1a',
+          border: `2px solid ${doubleRarity ? '#ffd700' : '#2a2a4a'}`,
+          borderRadius: 6, color: doubleRarity ? '#ffd700' : '#557',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>★ DOUBLE RARITY ODDS</span>
+          <span>{doubleRarity ? 'ON' : 'OFF'}</span>
+        </button>
+        {doubleRarity && (
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textAlign: 'center' }}>
+            COMMON 10% · UNCOMMON 30% · RARE 40% · LEGENDARY 20%
+          </div>
+        )}
       </div>
       <button onClick={handleStart} style={{
         padding: '14px 48px', background: '#1a0505', border: '2px solid #ff6b6b',
@@ -2167,6 +2207,7 @@ export default function App() {
 
   // ── 1v1 state ──
   const [roundType, setRoundType] = useState(null); // 'lightning' | 'normal'
+  const [mpDoubleRarityDefault, setMpDoubleRarityDefault] = useState(false);
   const [mpCurrentRound, setMpCurrentRound] = useState(1);
   const [mpP1RoundWins, setMpP1RoundWins] = useState(0);
   const [mpP2RoundWins, setMpP2RoundWins] = useState(0);
@@ -2266,6 +2307,7 @@ export default function App() {
   const [brPassToIdx, setBrPassToIdx] = useState(0);
   const [brRound, setBrRound] = useState(1);
   const [brPowersEnabled, setBrPowersEnabled] = useState(true);
+  const [brDoubleRarityDefault, setBrDoubleRarityDefault] = useState(false);
   const [brRoundFinishOrder, setBrRoundFinishOrder] = useState([]); // player indices in finish order
   const [brEliminationOrder, setBrEliminationOrder] = useState([]); // player indices in elim order
   // per-turn ephemeral
@@ -2335,17 +2377,18 @@ export default function App() {
     }
   }
 
-  function handleRoundTypeSelect(type) {
+  function handleRoundTypeSelect(type, doubleRarity) {
     setRoundType(type);
     setMpCurrentRound(1);
     setMpP1RoundWins(0);
     setMpP2RoundWins(0);
-    startMpRound(1);
+    setMpDoubleRarityDefault(!!doubleRarity);
+    startMpRound(1, !!doubleRarity);
   }
 
-  function startMpRound(roundNum) {
-    const newP1Powers = rollPowers(1);
-    const newP2Powers = rollPowers(1);
+  function startMpRound(roundNum, useDoubled = false) {
+    const newP1Powers = rollPowers(1, useDoubled);
+    const newP2Powers = rollPowers(1, useDoubled);
     setP1Powers(newP1Powers);
     setP2Powers(newP2Powers);
     setMpCoinFlipWinner(null);
@@ -2509,14 +2552,15 @@ export default function App() {
     };
   }
 
-  function startBattleRoyale(playerNames, powersEnabled) {
+  function startBattleRoyale(playerNames, powersEnabled, doubleRarityEnabled) {
     setBrPowersEnabled(powersEnabled);
+    setBrDoubleRarityDefault(!!doubleRarityEnabled);
     setBrRound(1);
     setBrEliminationOrder([]);
     const players = playerNames.map(name => ({
       ...makeBrPlayer(name),
       functions: selectFunctions(difficulty),
-      powers: powersEnabled ? rollBrPowers(1) : [],
+      powers: powersEnabled ? rollBrPowers(1, !!doubleRarityEnabled) : [],
     }));
     setBrPlayers(players);
     setBrCurrentIdx(0);
@@ -2545,7 +2589,7 @@ export default function App() {
       functions: selectFunctions(difficulty),
       identified: [],
       wrongGuesses: [],
-      powers: brPowersEnabled ? rollBrPowers(1) : [],
+      powers: brPowersEnabled ? rollBrPowers(1, brDoubleRarityDefault) : [],
       parabolaScanResults: [],
       spiralScanResults: [],
       bindingVowActive: false,
@@ -3029,7 +3073,7 @@ export default function App() {
 
   function brConfirmPartyPerry(guess) {
     if (guess === 7) {
-      const newPowers = rollBrPowers(2);
+      const newPowers = rollBrPowers(2, brDoubleRarityDefault);
       setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
         ? { ...p,
             powers: [...p.powers.map((pw, pi) => pi === brPartyPerryPendingIndex ? { ...pw, used: true } : pw), ...newPowers] }
@@ -3186,7 +3230,8 @@ export default function App() {
     const setPowers = isP1 ? setP1Powers : setP2Powers;
     setPowers(prev => prev.map((p, i) => i === mpPartyPerryPendingIndex ? { ...p, used: true } : p));
     if (guess === 7) {
-      const bonus = rollPowers(2);
+      const useDoubled = mpDoubleRarityDefault || mpCurrentRound === 3;
+      const bonus = rollPowers(2, useDoubled);
       setPowers(prev => [...prev, ...bonus]);
       setMpPartyPerryNewPowers(bonus);
     }
@@ -3578,11 +3623,13 @@ export default function App() {
     setMpCurrentRound(newRound);
 
     // Round 2+: both players start fresh with 1 power; coin flip gives the winner 1 extra
-    let newP1Powers = rollPowers(1);
-    let newP2Powers = rollPowers(1);
+    // Round 3 (or if double rarity default is on): doubled rarity odds
+    const useDoubled = mpDoubleRarityDefault || newRound === 3;
+    let newP1Powers = rollPowers(1, useDoubled);
+    let newP2Powers = rollPowers(1, useDoubled);
     const coinWinner = Math.random() < 0.5 ? 1 : 2;
-    if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1)];
-    else newP2Powers = [...newP2Powers, ...rollPowers(1)];
+    if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
+    else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
     setP1Powers(newP1Powers);
     setP2Powers(newP2Powers);
     setMpCoinFlipWinner(coinWinner);
