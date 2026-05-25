@@ -2554,11 +2554,19 @@ export default function App() {
   }
 
   function startMpRound(roundNum, useDoubled = false) {
-    const newP1Powers = rollPowers(1, useDoubled);
-    const newP2Powers = rollPowers(1, useDoubled);
+    const isChaos = difficulty === 'chaos';
+    const basePowerCount = isChaos ? 2 : 1;
+    let newP1Powers = rollPowers(basePowerCount, useDoubled);
+    let newP2Powers = rollPowers(basePowerCount, useDoubled);
+    let coinWinner = null;
+    if (isChaos) {
+      coinWinner = Math.random() < 0.5 ? 1 : 2;
+      if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
+      else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
+    }
     setP1Powers(newP1Powers);
     setP2Powers(newP2Powers);
-    setMpCoinFlipWinner(null);
+    setMpCoinFlipWinner(coinWinner);
 
     setP1Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
     setP2Slot({ functions: selectFunctions(difficulty), grid: initGrid() });
@@ -2727,7 +2735,7 @@ export default function App() {
     const players = playerNames.map(name => ({
       ...makeBrPlayer(name),
       functions: selectFunctions(difficulty),
-      powers: powersEnabled ? rollBrPowers(1, !!doubleRarityEnabled) : [],
+      powers: powersEnabled ? rollBrPowers(difficulty === 'chaos' ? 2 : 1, !!doubleRarityEnabled) : [],
     }));
     setBrPlayers(players);
     setBrCurrentIdx(0);
@@ -2756,7 +2764,7 @@ export default function App() {
       functions: selectFunctions(difficulty),
       identified: [],
       wrongGuesses: [],
-      powers: brPowersEnabled ? rollBrPowers(1, brDoubleRarityDefault) : [],
+      powers: brPowersEnabled ? rollBrPowers(difficulty === 'chaos' ? 2 : 1, brDoubleRarityDefault) : [],
       parabolaScanResults: [],
       spiralScanResults: [],
       bindingVowActive: false,
@@ -3789,11 +3797,12 @@ export default function App() {
     const newRound = mpCurrentRound + 1;
     setMpCurrentRound(newRound);
 
-    // Round 2+: both players start fresh with 1 power; coin flip gives the winner 1 extra
-    // Round 3 (or if double rarity default is on): doubled rarity odds
+    // Round 2+: both players start fresh; coin flip gives the winner 1 extra
+    // Chaos difficulty: 2 base powers per player; Round 3 / double rarity toggle: doubled odds
     const useDoubled = mpDoubleRarityDefault || newRound === 3;
-    let newP1Powers = rollPowers(1, useDoubled);
-    let newP2Powers = rollPowers(1, useDoubled);
+    const basePowerCount = difficulty === 'chaos' ? 2 : 1;
+    let newP1Powers = rollPowers(basePowerCount, useDoubled);
+    let newP2Powers = rollPowers(basePowerCount, useDoubled);
     const coinWinner = Math.random() < 0.5 ? 1 : 2;
     if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
     else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
