@@ -505,24 +505,30 @@ function BrPassScreen({ toName, notifications, bonusTurn, glitchTriggered, annou
 function BrTargetPicker({ players, currentIdx, powerLabel, onSelect, onCancel }) {
   const targets = players
     .map((p, i) => ({ ...p, idx: i }))
-    .filter(p => p.active && p.idx !== currentIdx);
+    .filter(p => p.active && !p.finishedThisRound && p.idx !== currentIdx);
   return (
     <div style={{ marginBottom: 12, padding: '12px 16px', background: '#0d0d1a',
       border: '1px solid #ff6b6b44', borderRadius: 8, width: '100%', maxWidth: 560 }}>
       <div style={{ fontSize: 11, letterSpacing: '0.15em', color: '#ff6b6b', marginBottom: 10, fontWeight: 700 }}>
         TARGET PLAYER FOR {powerLabel}
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        {targets.map(p => (
-          <button key={p.idx} onClick={() => onSelect(p.idx)} style={{
-            padding: '8px 16px', background: '#1a0505', border: '2px solid #ff6b6b',
-            borderRadius: 6, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 13,
-            fontWeight: 700, cursor: 'pointer', letterSpacing: '0.08em',
-          }}>
-            {p.name}
-          </button>
-        ))}
-      </div>
+      {targets.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.08em', marginBottom: 10 }}>
+          No valid targets — all other players have already finished.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {targets.map(p => (
+            <button key={p.idx} onClick={() => onSelect(p.idx)} style={{
+              padding: '8px 16px', background: '#1a0505', border: '2px solid #ff6b6b',
+              borderRadius: 6, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 13,
+              fontWeight: 700, cursor: 'pointer', letterSpacing: '0.08em',
+            }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
       <button onClick={onCancel} style={{
         padding: '6px 16px', background: 'none', border: '1px solid #334',
         borderRadius: 4, color: '#445', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer',
