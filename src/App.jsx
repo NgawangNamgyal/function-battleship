@@ -84,6 +84,17 @@ function rollPowers(count) {
   });
 }
 
+function rollBrPowers(count) {
+  const pool = POWERS.filter(p => p.id !== 'trapCard');
+  return Array.from({ length: count }, () => {
+    const r = Math.random();
+    const rarity = r < 0.40 ? 'common' : r < 0.70 ? 'uncommon' : r < 0.90 ? 'rare' : 'legendary';
+    const tier = pool.filter(p => p.rarity === rarity);
+    const src = tier.length > 0 ? tier : pool;
+    return { ...src[Math.floor(Math.random() * src.length)], used: false };
+  });
+}
+
 function selectFunctions(difficulty) {
   const { bank, numFunctions, nastyGuarantee } = DIFFICULTY[difficulty];
   const selected = [];
@@ -332,9 +343,10 @@ function DifficultyScreen({ onSelect }) {
 
 function ModeSelectScreen({ difficulty, onSelect, onBack }) {
   const modes = [
-    { key: 'solo',      label: 'SOLO',       desc: 'Identify the hidden functions' },
-    { key: '1v1',       label: '1v1',        desc: 'Pass-and-play against a friend' },
-    { key: 'powertest', label: 'POWER TEST', desc: 'Pick any powers and test them' },
+    { key: 'solo',         label: 'SOLO',          desc: 'Identify the hidden functions' },
+    { key: '1v1',          label: '1v1',           desc: 'Pass-and-play against a friend' },
+    { key: 'battleRoyale', label: 'BATTLE ROYALE', desc: '3–5 players · last to finish is eliminated' },
+    { key: 'powertest',    label: 'POWER TEST',    desc: 'Pick any powers and test them' },
   ];
   return (
     <div style={centeredPageStyle()}>
@@ -371,6 +383,152 @@ function RoundTypeScreen({ difficulty, onSelect, onBack }) {
         ))}
       </div>
       <BackButton label="← CHANGE MODE" onClick={onBack} />
+    </div>
+  );
+}
+
+function BattleRoyaleSetupScreen({ difficulty, onStart, onBack }) {
+  const [count, setCount] = useState(3);
+  const [names, setNames] = useState(['', '', '', '', '']);
+  const [powersEnabled, setPowersEnabled] = useState(true);
+  function handleStart() {
+    const playerNames = names.slice(0, count).map((n, i) => n.trim() || `Player ${i + 1}`);
+    onStart(playerNames, powersEnabled);
+  }
+  return (
+    <div style={centeredPageStyle()}>
+      <GameTitle />
+      <p style={subtitleStyle()}>
+        BATTLE ROYALE · <span style={{ color: '#ff6b6b' }}>{DIFFICULTY[difficulty].label.toUpperCase()}</span>
+      </p>
+      <div style={{ marginBottom: 16, width: 320 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.15em', color: '#557', marginBottom: 8 }}>NUMBER OF PLAYERS</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[3, 4, 5].map(n => (
+            <button key={n} onClick={() => setCount(n)} style={{
+              flex: 1, padding: '10px 0',
+              background: count === n ? '#1a0505' : '#0d0d1a',
+              border: `2px solid ${count === n ? '#ff6b6b' : '#2a2a4a'}`,
+              borderRadius: 6, color: count === n ? '#ff6b6b' : '#557',
+              fontFamily: 'inherit', fontSize: 16, fontWeight: 700, cursor: 'pointer',
+              boxShadow: count === n ? '0 0 12px #ff6b6b33' : 'none',
+            }}>{n}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginBottom: 16, width: 320 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.15em', color: '#557', marginBottom: 8 }}>PLAYER NAMES (OPTIONAL)</div>
+        {Array.from({ length: count }).map((_, i) => (
+          <input key={i} value={names[i]}
+            onChange={e => { const next = [...names]; next[i] = e.target.value; setNames(next); }}
+            placeholder={`Player ${i + 1}`} maxLength={16}
+            style={{
+              display: 'block', width: '100%', marginBottom: 8, padding: '8px 12px',
+              background: '#0d0d1a', border: '1px solid #2a2a4a', borderRadius: 4,
+              color: '#e0e0e0', fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ marginBottom: 20, width: 320 }}>
+        <button onClick={() => setPowersEnabled(p => !p)} style={{
+          width: '100%', padding: '10px 16px',
+          background: powersEnabled ? '#0a1020' : '#0d0d1a',
+          border: `2px solid ${powersEnabled ? '#66b3ff' : '#2a2a4a'}`,
+          borderRadius: 6, color: powersEnabled ? '#66b3ff' : '#557',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>⚡ POWERS</span>
+          <span>{powersEnabled ? 'ENABLED' : 'DISABLED'}</span>
+        </button>
+      </div>
+      <button onClick={handleStart} style={{
+        padding: '14px 48px', background: '#1a0505', border: '2px solid #ff6b6b',
+        borderRadius: 8, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 16,
+        fontWeight: 700, cursor: 'pointer', letterSpacing: '0.12em',
+        boxShadow: '0 0 24px #ff6b6b44', marginBottom: 8,
+      }}>
+        START BATTLE →
+      </button>
+      <BackButton label="← CHANGE MODE" onClick={onBack} />
+    </div>
+  );
+}
+
+function BrPassScreen({ toName, notifications, bonusTurn, glitchTriggered, announcement, onContinue }) {
+  return (
+    <div style={centeredPageStyle({ background: '#050508' })}>
+      {announcement && (
+        <div style={{ fontSize: 13, letterSpacing: '0.15em', color: '#00ff88', marginBottom: 12,
+          textTransform: 'uppercase', textShadow: '0 0 8px #00ff8866',
+          maxWidth: 380, textAlign: 'center', lineHeight: 1.5 }}>
+          {announcement}
+        </div>
+      )}
+      {notifications && notifications.length > 0 && notifications.map((n, i) => (
+        <div key={i} style={{ fontSize: 12, letterSpacing: '0.15em', color: '#ff6b6b', marginBottom: 6,
+          textTransform: 'uppercase', textShadow: '0 0 6px #ff6b6b66' }}>
+          ⚠ {n.byName} used {n.power} on you
+        </div>
+      ))}
+      {glitchTriggered && (
+        <div style={{ fontSize: 13, letterSpacing: '0.2em', color: '#00e5ff',
+          textTransform: 'uppercase', textShadow: '0 0 8px #00e5ff88' }}>
+          ⚡ GLITCH PASSIVE ACTIVATED
+        </div>
+      )}
+      {bonusTurn && !glitchTriggered && (
+        <div style={{ fontSize: 13, letterSpacing: '0.2em', color: '#ffd700',
+          textTransform: 'uppercase', textShadow: '0 0 8px #ffd70088' }}>
+          ★ BONUS TURN
+        </div>
+      )}
+      <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.25em', color: '#ff6b6b',
+        textShadow: '0 0 24px #ff6b6baa', margin: '16px 0 8px' }}>
+        {toName}
+      </div>
+      <div style={{ fontSize: 12, color: '#557', letterSpacing: '0.1em', marginBottom: 24 }}>
+        PASS THE DEVICE
+      </div>
+      <button onClick={onContinue} style={{
+        padding: '14px 48px', background: '#1a0505', border: '2px solid #ff6b6b',
+        borderRadius: 8, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 16,
+        fontWeight: 700, cursor: 'pointer', letterSpacing: '0.12em', boxShadow: '0 0 24px #ff6b6b44',
+      }}>
+        READY →
+      </button>
+    </div>
+  );
+}
+
+function BrTargetPicker({ players, currentIdx, powerLabel, onSelect, onCancel }) {
+  const targets = players
+    .map((p, i) => ({ ...p, idx: i }))
+    .filter(p => p.active && p.idx !== currentIdx);
+  return (
+    <div style={{ marginBottom: 12, padding: '12px 16px', background: '#0d0d1a',
+      border: '1px solid #ff6b6b44', borderRadius: 8, width: '100%', maxWidth: 560 }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.15em', color: '#ff6b6b', marginBottom: 10, fontWeight: 700 }}>
+        TARGET PLAYER FOR {powerLabel}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {targets.map(p => (
+          <button key={p.idx} onClick={() => onSelect(p.idx)} style={{
+            padding: '8px 16px', background: '#1a0505', border: '2px solid #ff6b6b',
+            borderRadius: 6, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 13,
+            fontWeight: 700, cursor: 'pointer', letterSpacing: '0.08em',
+          }}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <button onClick={onCancel} style={{
+        padding: '6px 16px', background: 'none', border: '1px solid #334',
+        borderRadius: 4, color: '#445', fontFamily: 'inherit', fontSize: 11, cursor: 'pointer',
+      }}>
+        CANCEL
+      </button>
     </div>
   );
 }
@@ -1041,7 +1199,7 @@ function ShotModeButtons({ shotMode, onChange, disabledModes = [], destroyedMode
   );
 }
 
-function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false }) {
+function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false, destroyedGrids = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -1062,26 +1220,28 @@ function ParabolaShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSele
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {grids.map(({ key, label }) => {
           const isVowLocked = bindingVowActive && key === 'f';
+          const isDestroyed = destroyedGrids.includes(key);
+          const isLocked = isVowLocked || isDestroyed;
           const isSelected = selectedGrid === key;
           return (
             <button
               key={key}
-              onClick={() => !isVowLocked && onSelectGrid(key)}
-              disabled={isVowLocked}
-              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+              onClick={() => !isLocked && onSelectGrid(key)}
+              disabled={isLocked}
+              title={isVowLocked ? 'Restricted by Binding Vow' : isDestroyed ? 'Grid destroyed by Omnipotence' : undefined}
               style={{
                 padding: '8px 16px',
                 background: isSelected ? '#1a1400' : '#0a0a1a',
-                border: `1px solid ${isSelected ? '#ffd700' : isVowLocked ? '#1a1a2a' : '#2a2a4a'}`,
+                border: `1px solid ${isSelected ? '#ffd700' : isLocked ? '#1a1a2a' : '#2a2a4a'}`,
                 borderRadius: 4,
-                color: isSelected ? '#ffd700' : isVowLocked ? '#2a2a3a' : '#668',
+                color: isSelected ? '#ffd700' : isLocked ? '#2a2a3a' : '#668',
                 fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                cursor: isLocked ? 'not-allowed' : 'pointer',
                 letterSpacing: '0.05em',
                 boxShadow: isSelected ? '0 0 8px #ffd70033' : 'none',
                 transition: 'all 0.15s',
-                textDecoration: isVowLocked ? 'line-through' : 'none',
-                opacity: isVowLocked ? 0.4 : 1,
+                textDecoration: isLocked ? 'line-through' : 'none',
+                opacity: isLocked ? 0.4 : 1,
               }}
             >{label}</button>
           );
@@ -1262,7 +1422,7 @@ function ParabolaScanResultCards({ results }) {
   );
 }
 
-function SpiralShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false }) {
+function SpiralShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelectPreset, onFire, usedScans = [], bindingVowActive = false, destroyedGrids = [] }) {
   const grids = [
     { key: 'f',  label: 'f(x)' },
     { key: 'df', label: "f′(x)" },
@@ -1283,26 +1443,28 @@ function SpiralShotPicker({ selectedGrid, onSelectGrid, selectedPreset, onSelect
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {grids.map(({ key, label }) => {
           const isVowLocked = bindingVowActive && key === 'f';
+          const isDestroyed = destroyedGrids.includes(key);
+          const isLocked = isVowLocked || isDestroyed;
           const isSelected = selectedGrid === key;
           return (
             <button
               key={key}
-              onClick={() => !isVowLocked && onSelectGrid(key)}
-              disabled={isVowLocked}
-              title={isVowLocked ? 'Restricted by Binding Vow' : undefined}
+              onClick={() => !isLocked && onSelectGrid(key)}
+              disabled={isLocked}
+              title={isVowLocked ? 'Restricted by Binding Vow' : isDestroyed ? 'Grid destroyed by Omnipotence' : undefined}
               style={{
                 padding: '8px 16px',
                 background: isSelected ? '#001a20' : '#000d12',
-                border: `1px solid ${isSelected ? '#00e5ff' : isVowLocked ? '#1a1a2a' : '#1a3a3a'}`,
+                border: `1px solid ${isSelected ? '#00e5ff' : isLocked ? '#1a1a2a' : '#1a3a3a'}`,
                 borderRadius: 4,
-                color: isSelected ? '#00e5ff' : isVowLocked ? '#2a2a3a' : '#668',
+                color: isSelected ? '#00e5ff' : isLocked ? '#2a2a3a' : '#668',
                 fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: isVowLocked ? 'not-allowed' : 'pointer',
+                cursor: isLocked ? 'not-allowed' : 'pointer',
                 letterSpacing: '0.05em',
                 boxShadow: isSelected ? '0 0 8px #00e5ff33' : 'none',
                 transition: 'all 0.15s',
-                textDecoration: isVowLocked ? 'line-through' : 'none',
-                opacity: isVowLocked ? 0.4 : 1,
+                textDecoration: isLocked ? 'line-through' : 'none',
+                opacity: isLocked ? 0.4 : 1,
               }}
             >{label}</button>
           );
@@ -2088,6 +2250,59 @@ export default function App() {
   const [p2FogOfWarTurns, setP2FogOfWarTurns] = useState(0);
   const [mpFogOfWarThisTurn, setMpFogOfWarThisTurn] = useState(false);
 
+  // ── Battle Royale state ──
+  // brPlayers[i]: { name, active, eliminationRound, finishedThisRound, finishOrder,
+  //   grid, functions, identified, wrongGuesses, powers,
+  //   parabolaScanResults, spiralScanResults,
+  //   bindingVowActive, destroyedGrids, fogOfWarTurns, notifications }
+  const [brPlayers, setBrPlayers] = useState([]);
+  const [brCurrentIdx, setBrCurrentIdx] = useState(0);
+  const [brPassToIdx, setBrPassToIdx] = useState(0);
+  const [brRound, setBrRound] = useState(1);
+  const [brPowersEnabled, setBrPowersEnabled] = useState(true);
+  const [brRoundFinishOrder, setBrRoundFinishOrder] = useState([]); // player indices in finish order
+  const [brEliminationOrder, setBrEliminationOrder] = useState([]); // player indices in elim order
+  // per-turn ephemeral
+  const [brShotMode, setBrShotMode] = useState('f');
+  const [brShotsFiredThisTurn, setBrShotsFiredThisTurn] = useState(0);
+  const [brShotsAllowedThisTurn, setBrShotsAllowedThisTurn] = useState(1);
+  const [brBonusTurnsRemaining, setBrBonusTurnsRemaining] = useState(0);
+  const [brNextPassIsBonusTurn, setBrNextPassIsBonusTurn] = useState(false);
+  const [brMessage, setBrMessage] = useState('');
+  const [brHeatCheckActive, setBrHeatCheckActive] = useState(false);
+  const [brHeatCheckMissed, setBrHeatCheckMissed] = useState(false);
+  const [brParabolaShotPending, setBrParabolaShotPending] = useState(false);
+  const [brParabolaShotPendingIndex, setBrParabolaShotPendingIndex] = useState(null);
+  const [brParabolaShotGridKey, setBrParabolaShotGridKey] = useState(null);
+  const [brParabolaShotPresetIdx, setBrParabolaShotPresetIdx] = useState(null);
+  const [brSpiralShotPending, setBrSpiralShotPending] = useState(false);
+  const [brSpiralShotPendingIndex, setBrSpiralShotPendingIndex] = useState(null);
+  const [brSpiralShotGridKey, setBrSpiralShotGridKey] = useState(null);
+  const [brSpiralShotPresetIdx, setBrSpiralShotPresetIdx] = useState(null);
+  const [brPartyPerryPending, setBrPartyPerryPending] = useState(false);
+  const [brPartyPerryPendingIndex, setBrPartyPerryPendingIndex] = useState(null);
+  const [brPartyPerryNewPowers, setBrPartyPerryNewPowers] = useState(null);
+  const [brOmnisciencePending, setBrOmnisciencePending] = useState(false);
+  const [brOmnisciencePendingIndex, setBrOmnisciencePendingIndex] = useState(null);
+  const [brOmniscienceGrid, setBrOmniscienceGrid] = useState(null);
+  const [brOmniscienceActive, setBrOmniscienceActive] = useState(false);
+  const [brOmniscienceTargetIdx, setBrOmniscienceTargetIdx] = useState(null);
+  const [brOmnipotencePending, setBrOmnipotencePending] = useState(false);
+  const [brOmnipotencePendingIndex, setBrOmnipotencePendingIndex] = useState(null);
+  const [brOmnipotenceGrid, setBrOmnipotenceGrid] = useState(null);
+  const [brOmnipotenceTargetIdx, setBrOmnipotenceTargetIdx] = useState(null);
+  const [brFogOfWarPending, setBrFogOfWarPending] = useState(false);
+  const [brFogOfWarPendingIndex, setBrFogOfWarPendingIndex] = useState(null);
+  const [brMarauderPending, setBrMarauderPending] = useState(false);
+  const [brMarauderPendingIndex, setBrMarauderPendingIndex] = useState(null);
+  const [brMarauderTargetIdx, setBrMarauderTargetIdx] = useState(null);
+  const [brTargetPickerPending, setBrTargetPickerPending] = useState(false); // intermediate target pick step
+  const [brGlitchBonusActive, setBrGlitchBonusActive] = useState(false);
+  const [brGlitchTriggered, setBrGlitchTriggered] = useState(false);
+  const [brFogOfWarThisTurn, setBrFogOfWarThisTurn] = useState(false);
+  const [brPowerError, setBrPowerError] = useState('');
+  const [brPassAnnouncement, setBrPassAnnouncement] = useState('');
+
   // ── Navigation ──
 
   function handleDifficultySelect(diff) {
@@ -2107,6 +2322,8 @@ export default function App() {
       setPhase('solo');
     } else if (mode === 'powertest') {
       setPhase('power-test-setup');
+    } else if (mode === 'battleRoyale') {
+      setPhase('br-setup');
     } else {
       setPhase('roundtype');
     }
@@ -2261,6 +2478,562 @@ export default function App() {
     setGameMode(null);
     setRoundType(null);
     setMpMatchWinner(null);
+  }
+
+  // ── Battle Royale logic ──
+
+  function makeBrPlayer(name) {
+    return {
+      name,
+      active: true,
+      eliminationRound: null,
+      finishedThisRound: false,
+      finishOrder: null,
+      grid: initGrid(),
+      functions: [],
+      identified: [],
+      wrongGuesses: [],
+      powers: [],
+      parabolaScanResults: [],
+      spiralScanResults: [],
+      bindingVowActive: false,
+      destroyedGrids: [],
+      fogOfWarTurns: 0,
+      notifications: [],
+    };
+  }
+
+  function startBattleRoyale(playerNames, powersEnabled) {
+    setBrPowersEnabled(powersEnabled);
+    setBrRound(1);
+    setBrEliminationOrder([]);
+    const players = playerNames.map(name => ({
+      ...makeBrPlayer(name),
+      functions: selectFunctions(difficulty),
+      powers: powersEnabled ? rollBrPowers(1) : [],
+    }));
+    setBrPlayers(players);
+    setBrCurrentIdx(0);
+    setBrRoundFinishOrder([]);
+    resetBrTurnState();
+    setPhase('br');
+  }
+
+  function startBrNextRound(playersAfterElim) {
+    const nextRound = brRound + 1;
+    setBrRound(nextRound);
+    setBrRoundFinishOrder([]);
+    setBrPassAnnouncement('');
+    const updated = playersAfterElim.map(p => ({
+      ...p,
+      finishedThisRound: false,
+      finishOrder: null,
+      grid: initGrid(),
+      functions: selectFunctions(difficulty),
+      identified: [],
+      wrongGuesses: [],
+      powers: brPowersEnabled ? rollBrPowers(1) : [],
+      parabolaScanResults: [],
+      spiralScanResults: [],
+      bindingVowActive: false,
+      destroyedGrids: [],
+      fogOfWarTurns: 0,
+      notifications: [],
+    }));
+    setBrPlayers(updated);
+    // Start with first active player
+    const firstIdx = updated.findIndex(p => p.active);
+    setBrCurrentIdx(firstIdx);
+    resetBrTurnState();
+    setPhase('br');
+  }
+
+  function resetBrTurnState() {
+    setBrShotMode('f');
+    setBrShotsFiredThisTurn(0);
+    setBrShotsAllowedThisTurn(1);
+    setBrBonusTurnsRemaining(0);
+    setBrNextPassIsBonusTurn(false);
+    setBrMessage('');
+    setBrHeatCheckActive(false);
+    setBrHeatCheckMissed(false);
+    setBrParabolaShotPending(false);
+    setBrParabolaShotPendingIndex(null);
+    setBrParabolaShotGridKey(null);
+    setBrParabolaShotPresetIdx(null);
+    setBrSpiralShotPending(false);
+    setBrSpiralShotPendingIndex(null);
+    setBrSpiralShotGridKey(null);
+    setBrSpiralShotPresetIdx(null);
+    setBrPartyPerryPending(false);
+    setBrPartyPerryPendingIndex(null);
+    setBrPartyPerryNewPowers(null);
+    setBrOmnisciencePending(false);
+    setBrOmnisciencePendingIndex(null);
+    setBrOmniscienceGrid(null);
+    setBrOmniscienceActive(false);
+    setBrOmniscienceTargetIdx(null);
+    setBrOmnipotencePending(false);
+    setBrOmnipotencePendingIndex(null);
+    setBrOmnipotenceGrid(null);
+    setBrOmnipotenceTargetIdx(null);
+    setBrFogOfWarPending(false);
+    setBrFogOfWarPendingIndex(null);
+    setBrMarauderPending(false);
+    setBrMarauderPendingIndex(null);
+    setBrMarauderTargetIdx(null);
+    setBrTargetPickerPending(false);
+    setBrGlitchBonusActive(false);
+    setBrGlitchTriggered(false);
+    setBrFogOfWarThisTurn(false);
+    setBrPowerError('');
+  }
+
+  function findNextBrPlayerIdx(players, fromIdx) {
+    const n = players.length;
+    for (let step = 1; step <= n; step++) {
+      const idx = (fromIdx + step) % n;
+      if (players[idx].active && !players[idx].finishedThisRound) return idx;
+    }
+    return -1;
+  }
+
+  function brFireShot(col, row) {
+    const player = brPlayers[brCurrentIdx];
+    if (brShotsFiredThisTurn >= brShotsAllowedThisTurn) return;
+
+    let actualShotMode;
+    if (brFogOfWarThisTurn) {
+      const grids = availableGrids(player.destroyedGrids, player.bindingVowActive);
+      actualShotMode = grids[Math.floor(Math.random() * grids.length)];
+    } else {
+      if (player.destroyedGrids.includes(brShotMode)) return;
+      actualShotMode = brShotMode;
+    }
+
+    if (player.grid[row][col].shots[actualShotMode].fired) {
+      if (!brFogOfWarThisTurn) return;
+      const newCount = brShotsFiredThisTurn + 1;
+      setBrShotsFiredThisTurn(newCount);
+      if (brHeatCheckActive) setBrHeatCheckMissed(true);
+      return;
+    }
+
+    const hits = player.functions
+      .filter(({ fn }) => doesFunctionPassThrough(fn[actualShotMode], col, row))
+      .map(({ fn, color }) => ({ fnId: fn.id, color }));
+
+    const newGrid = player.grid.map((r, ri) =>
+      r.map((c, ci) => {
+        if (ri !== row || ci !== col) return c;
+        return { ...c, shots: { ...c.shots, [actualShotMode]: { fired: true, hits } } };
+      })
+    );
+    setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx ? { ...p, grid: newGrid } : p));
+
+    const newCount = brShotsFiredThisTurn + 1;
+    setBrShotsFiredThisTurn(newCount);
+    if (brHeatCheckActive) {
+      if (hits.length === 0) setBrHeatCheckMissed(true);
+      else if (newCount < 3) setBrShotsAllowedThisTurn(prev => prev + 1);
+    }
+  }
+
+  function brHandleGuessById(id) {
+    const player = brPlayers[brCurrentIdx];
+    if (player.identified.includes(id)) { setBrMessage('Already found!'); return; }
+
+    const match = player.functions.find(({ fn }) => fn.id === id);
+    if (match) {
+      const newIdentified = [...player.identified, id];
+      setBrMessage('');
+
+      // Bonus auto-trigger
+      const bonusIdx = player.powers.findIndex(p => p.id === 'bonus' && !p.used);
+      let newPowers = player.powers;
+      if (bonusIdx !== -1) {
+        newPowers = player.powers.map((p, i) => i === bonusIdx ? { ...p, used: true } : p);
+        setBrShotsAllowedThisTurn(prev => prev + 2);
+      }
+
+      const allDone = newIdentified.length === player.functions.length;
+      const newFinishOrder = allDone ? brRoundFinishOrder.length + 1 : player.finishOrder;
+
+      setBrPlayers(prev => prev.map((p, i) =>
+        i === brCurrentIdx
+          ? { ...p, identified: newIdentified, powers: newPowers, finishedThisRound: allDone, finishOrder: newFinishOrder }
+          : p
+      ));
+
+      if (allDone) {
+        const pos = brRoundFinishOrder.length + 1;
+        const ordinal = pos === 1 ? '1st' : pos === 2 ? '2nd' : pos === 3 ? '3rd' : `${pos}th`;
+        const newFinishOrderArr = [...brRoundFinishOrder, brCurrentIdx];
+        // Count unfinished active players excluding the one who just finished
+        const unfinishedOthers = brPlayers.filter((p, i) =>
+          p.active && !p.finishedThisRound && i !== brCurrentIdx
+        );
+
+        if (unfinishedOthers.length === 0) {
+          // Everyone finished simultaneously or this was the last one
+          setBrRoundFinishOrder(newFinishOrderArr);
+          setBrPassAnnouncement(`${player.name} finished ${ordinal}!`);
+          setTimeout(() => setPhase('br-round-end'), 0);
+        } else if (unfinishedOthers.length === 1) {
+          // Only 1 player left — auto-eliminated, no need to play
+          const lastPlayerIdx = brPlayers.findIndex((p, i) =>
+            p.active && !p.finishedThisRound && i !== brCurrentIdx
+          );
+          const finalFinishOrderArr = [...newFinishOrderArr, lastPlayerIdx];
+          setBrRoundFinishOrder(finalFinishOrderArr);
+          setBrPassAnnouncement(
+            `${player.name} finished ${ordinal}! ☠ ${brPlayers[lastPlayerIdx].name} is last — eliminated!`
+          );
+          setTimeout(() => setPhase('br-round-end'), 0);
+        } else {
+          // 2+ others still unfinished — pass to next player with announcement
+          setBrRoundFinishOrder(newFinishOrderArr);
+          const nextIdx = findNextBrPlayerIdx(
+            brPlayers.map((p, i) => i === brCurrentIdx ? { ...p, finishedThisRound: true } : p),
+            brCurrentIdx
+          );
+          setBrPassToIdx(nextIdx);
+          setBrPassAnnouncement(`${player.name} finished ${ordinal}!`);
+          resetBrTurnState();
+          setTimeout(() => setPhase('br-pass'), 0);
+        }
+      }
+    } else {
+      setBrPlayers(prev => prev.map((p, i) =>
+        i === brCurrentIdx && !p.wrongGuesses.includes(id)
+          ? { ...p, wrongGuesses: [...p.wrongGuesses, id] }
+          : p
+      ));
+      const glitchIdx = player.powers.findIndex(p => p.id === 'glitch' && !p.used);
+      if (glitchIdx !== -1) {
+        setBrPlayers(prev => prev.map((p, i) =>
+          i === brCurrentIdx ? { ...p, powers: p.powers.map((pw, pi) => pi === glitchIdx ? { ...pw, used: true } : pw) } : p
+        ));
+        endBrTurn(true, true);
+      } else {
+        endBrTurn(true);
+      }
+    }
+  }
+
+  function endBrTurn(wrongGuess = false, glitchTriggered = false) {
+    // Decrement fog for current player if applicable
+    if (brFogOfWarThisTurn) {
+      setBrPlayers(prev => prev.map((p, i) =>
+        i === brCurrentIdx ? { ...p, fogOfWarTurns: Math.max(0, p.fogOfWarTurns - 1) } : p
+      ));
+    }
+
+    resetBrTurnState();
+
+    if (wrongGuess && glitchTriggered) {
+      setBrBonusTurnsRemaining(1);
+      setBrPassToIdx(brCurrentIdx);
+      setBrNextPassIsBonusTurn(true);
+      setBrGlitchBonusActive(true);
+      setBrGlitchTriggered(true);
+    } else if (wrongGuess && brBonusTurnsRemaining > 0) {
+      setBrBonusTurnsRemaining(0);
+      setBrGlitchBonusActive(false);
+      const nextIdx = findNextBrPlayerIdx(brPlayers, brCurrentIdx);
+      setBrPassToIdx(nextIdx >= 0 ? nextIdx : brCurrentIdx);
+    } else if (brBonusTurnsRemaining > 0) {
+      setBrBonusTurnsRemaining(prev => prev - 1);
+      setBrPassToIdx(brCurrentIdx);
+      setBrNextPassIsBonusTurn(true);
+    } else {
+      setBrGlitchBonusActive(false);
+      const nextIdx = findNextBrPlayerIdx(brPlayers, brCurrentIdx);
+      setBrPassToIdx(nextIdx >= 0 ? nextIdx : brCurrentIdx);
+    }
+    setPhase('br-pass');
+  }
+
+  function handleBrPassContinue() {
+    setBrPassAnnouncement('');
+    const nextPlayer = brPlayers[brPassToIdx];
+    let newShotMode = 'f';
+    if (nextPlayer.bindingVowActive) {
+      setBrShotsAllowedThisTurn(2);
+      newShotMode = 'df';
+    } else if (nextPlayer.destroyedGrids.includes('f')) {
+      newShotMode = ['f', 'df', 'F'].find(m => !nextPlayer.destroyedGrids.includes(m)) || 'df';
+    }
+    setBrShotMode(newShotMode);
+    setBrFogOfWarThisTurn(nextPlayer.fogOfWarTurns > 0);
+    setBrGlitchTriggered(false);
+    setBrCurrentIdx(brPassToIdx);
+    // Clear notifications for this player
+    setBrPlayers(prev => prev.map((p, i) => i === brPassToIdx ? { ...p, notifications: [] } : p));
+    setPhase('br');
+  }
+
+  function useBrPower(powerIndex) {
+    const player = brPlayers[brCurrentIdx];
+    const power = player.powers[powerIndex];
+    if (!power || power.used) return;
+    setBrPowerError('');
+
+    if (power.id === 'reload') {
+      setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+        ? { ...p, powers: p.powers.map((pw, pi) => pi === powerIndex ? { ...pw, used: true } : pw) } : p));
+      setBrShotsAllowedThisTurn(prev => prev + 1);
+      return;
+    }
+    if (power.id === 'heatCheck') {
+      if (brShotsFiredThisTurn > 0 || brShotsAllowedThisTurn >= 2) return;
+      setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+        ? { ...p, powers: p.powers.map((pw, pi) => pi === powerIndex ? { ...pw, used: true } : pw) } : p));
+      setBrHeatCheckActive(true);
+      return;
+    }
+    if (power.id === 'bindingVow') {
+      const avail = availableGrids(player.destroyedGrids, true);
+      if (avail.length === 0) { setBrPowerError('Cannot activate — all grids would be restricted'); return; }
+      setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+        ? { ...p, powers: p.powers.map((pw, pi) => pi === powerIndex ? { ...pw, used: true } : pw), bindingVowActive: true } : p));
+      setBrShotsAllowedThisTurn(2);
+      if (brShotMode === 'f') setBrShotMode('df');
+      return;
+    }
+    if (power.id === 'parabolaShot') {
+      setBrParabolaShotPending(true);
+      setBrParabolaShotPendingIndex(powerIndex);
+      return;
+    }
+    if (power.id === 'spiralShot') {
+      setBrSpiralShotPending(true);
+      setBrSpiralShotPendingIndex(powerIndex);
+      return;
+    }
+    if (power.id === 'partyPerry') {
+      setBrPartyPerryPending(true);
+      setBrPartyPerryPendingIndex(powerIndex);
+      return;
+    }
+    // Opponent-targeting powers — first pick the target
+    if (power.id === 'omniscience') {
+      setBrOmnisciencePendingIndex(powerIndex);
+      setBrTargetPickerPending(true);
+      return;
+    }
+    if (power.id === 'omnipotence') {
+      setBrOmnipotencePendingIndex(powerIndex);
+      setBrTargetPickerPending(true);
+      return;
+    }
+    if (power.id === 'fogOfWar') {
+      setBrFogOfWarPendingIndex(powerIndex);
+      setBrTargetPickerPending(true);
+      return;
+    }
+    if (power.id === 'marauder') {
+      setBrMarauderPendingIndex(powerIndex);
+      setBrTargetPickerPending(true);
+      return;
+    }
+  }
+
+  function handleBrTargetSelect(targetIdx) {
+    setBrTargetPickerPending(false);
+    const player = brPlayers[brCurrentIdx];
+    if (brOmnisciencePendingIndex !== null) {
+      setBrOmniscienceTargetIdx(targetIdx);
+      setBrOmnisciencePending(true);
+      setBrOmniscienceGrid(null);
+      return;
+    }
+    if (brOmnipotencePendingIndex !== null) {
+      setBrOmnipotenceTargetIdx(targetIdx);
+      setBrOmnipotencePending(true);
+      setBrOmnipotenceGrid(null);
+      return;
+    }
+    if (brFogOfWarPendingIndex !== null) {
+      const target = brPlayers[targetIdx];
+      if (target.fogOfWarTurns > 0) {
+        setBrPowerError(`Cannot activate — Fog of War already active on ${target.name}`);
+        setBrFogOfWarPendingIndex(null);
+        return;
+      }
+      setBrPlayers(prev => prev.map((p, i) => {
+        if (i === brCurrentIdx) {
+          return { ...p, powers: p.powers.map((pw, pi) => pi === brFogOfWarPendingIndex ? { ...pw, used: true } : pw) };
+        }
+        if (i === targetIdx) {
+          return { ...p, fogOfWarTurns: p.fogOfWarTurns + 3,
+            notifications: [...p.notifications, { power: 'Fog of War', byName: player.name }] };
+        }
+        return p;
+      }));
+      setBrFogOfWarPendingIndex(null);
+      return;
+    }
+    if (brMarauderPendingIndex !== null) {
+      setBrMarauderTargetIdx(targetIdx);
+      setBrMarauderPending(true);
+      return;
+    }
+  }
+
+  function cancelBrTargetPicker() {
+    setBrTargetPickerPending(false);
+    setBrOmnisciencePendingIndex(null);
+    setBrOmnipotencePendingIndex(null);
+    setBrFogOfWarPendingIndex(null);
+    setBrMarauderPendingIndex(null);
+  }
+
+  function brActivateOmniscience(gridKey) {
+    setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+      ? { ...p, powers: p.powers.map((pw, pi) => pi === brOmnisciencePendingIndex ? { ...pw, used: true } : pw) } : p));
+    setBrOmnisciencePending(false);
+    setBrOmniscienceGrid(gridKey);
+    setBrOmniscienceActive(true);
+  }
+
+  function brCancelOmniscience() {
+    setBrOmnisciencePending(false);
+    setBrOmniscienceGrid(null);
+    setBrOmniscienceTargetIdx(null);
+    setBrOmnisciencePendingIndex(null);
+  }
+
+  function brCloseOmniscience() {
+    setBrOmniscienceActive(false);
+    setBrOmniscienceGrid(null);
+    setBrOmniscienceTargetIdx(null);
+    setBrOmnisciencePendingIndex(null);
+  }
+
+  function brActivateOmnipotence(gridKey) {
+    const target = brPlayers[brOmnipotenceTargetIdx];
+    const currentPlayer = brPlayers[brCurrentIdx];
+    const newDestroyed = [...target.destroyedGrids, gridKey];
+    if (availableGrids(newDestroyed, target.bindingVowActive).length === 0) {
+      setBrPowerError('Cannot activate — all grids would be restricted');
+      return;
+    }
+    setBrPlayers(prev => prev.map((p, i) => {
+      if (i === brCurrentIdx) {
+        return { ...p, powers: p.powers.map((pw, pi) => pi === brOmnipotencePendingIndex ? { ...pw, used: true } : pw) };
+      }
+      if (i === brOmnipotenceTargetIdx) {
+        return { ...p, destroyedGrids: newDestroyed,
+          notifications: [...p.notifications, { power: 'Omnipotence', byName: currentPlayer.name }] };
+      }
+      return p;
+    }));
+    setBrOmnipotencePending(false);
+    setBrOmnipotenceGrid(null);
+    setBrOmnipotenceTargetIdx(null);
+    setBrOmnipotencePendingIndex(null);
+  }
+
+  function brCancelOmnipotence() {
+    setBrOmnipotencePending(false);
+    setBrOmnipotenceGrid(null);
+    setBrOmnipotenceTargetIdx(null);
+    setBrOmnipotencePendingIndex(null);
+  }
+
+  function brConfirmMarauder(opponentPowerIndex) {
+    const currentPlayer = brPlayers[brCurrentIdx];
+    const targetPlayer = brPlayers[brMarauderTargetIdx];
+    const stolenPower = targetPlayer.powers[opponentPowerIndex];
+    setBrPlayers(prev => prev.map((p, i) => {
+      if (i === brCurrentIdx) {
+        const newPowers = p.powers.map((pw, pi) => pi === brMarauderPendingIndex ? { ...pw, used: true } : pw);
+        return { ...p, powers: [...newPowers, { ...stolenPower, used: false }] };
+      }
+      if (i === brMarauderTargetIdx) {
+        return { ...p,
+          powers: p.powers.map((pw, pi) => pi === opponentPowerIndex ? { ...pw, used: true } : pw),
+          notifications: [...p.notifications, { power: 'Marauder', byName: currentPlayer.name }],
+        };
+      }
+      return p;
+    }));
+    setBrMarauderPending(false);
+    setBrMarauderTargetIdx(null);
+    setBrMarauderPendingIndex(null);
+  }
+
+  function brCancelMarauder() {
+    setBrMarauderPending(false);
+    setBrMarauderTargetIdx(null);
+    setBrMarauderPendingIndex(null);
+  }
+
+  function brFireParabolaScan() {
+    if (brParabolaShotGridKey === null || brParabolaShotPresetIdx === null) return;
+    const player = brPlayers[brCurrentIdx];
+    const preset = PARABOLA_PRESETS[brParabolaShotPresetIdx];
+    const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+    const hits = player.functions.map(({ fn, color }) => {
+      const gFn = brParabolaShotGridKey === 'f' ? fn.f : brParabolaShotGridKey === 'df' ? fn.df : fn.F;
+      return { color, points: findIntersectionPoints(gFn, preset.fn) };
+    });
+    const result = { gridLabel: gridLabels[brParabolaShotGridKey], gridKey: brParabolaShotGridKey,
+      parabolaLabel: preset.label, hits, presetFn: preset.fn, presetIdx: brParabolaShotPresetIdx };
+    setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+      ? { ...p,
+          powers: p.powers.map((pw, pi) => pi === brParabolaShotPendingIndex ? { ...pw, used: true } : pw),
+          parabolaScanResults: [...p.parabolaScanResults, result] }
+      : p));
+    setBrParabolaShotPending(false);
+    setBrParabolaShotPendingIndex(null);
+    setBrParabolaShotGridKey(null);
+    setBrParabolaShotPresetIdx(null);
+  }
+
+  function brFireSpiralScan() {
+    if (brSpiralShotGridKey === null || brSpiralShotPresetIdx === null) return;
+    const player = brPlayers[brCurrentIdx];
+    const preset = SPIRAL_PRESETS[brSpiralShotPresetIdx];
+    const gridLabels = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+    const hits = player.functions.map(({ fn, color }) => {
+      const gFn = brSpiralShotGridKey === 'f' ? fn.f : brSpiralShotGridKey === 'df' ? fn.df : fn.F;
+      return { color, points: findSpiralIntersectionPoints(gFn, preset.fn) };
+    });
+    const result = { gridLabel: gridLabels[brSpiralShotGridKey], gridKey: brSpiralShotGridKey,
+      spiralLabel: preset.label, hits, presetFn: preset.fn, presetIdx: brSpiralShotPresetIdx };
+    setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+      ? { ...p,
+          powers: p.powers.map((pw, pi) => pi === brSpiralShotPendingIndex ? { ...pw, used: true } : pw),
+          spiralScanResults: [...p.spiralScanResults, result] }
+      : p));
+    setBrSpiralShotPending(false);
+    setBrSpiralShotPendingIndex(null);
+    setBrSpiralShotGridKey(null);
+    setBrSpiralShotPresetIdx(null);
+  }
+
+  function brConfirmPartyPerry(guess) {
+    if (guess === 7) {
+      const newPowers = rollBrPowers(2);
+      setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+        ? { ...p,
+            powers: [...p.powers.map((pw, pi) => pi === brPartyPerryPendingIndex ? { ...pw, used: true } : pw), ...newPowers] }
+        : p));
+      setBrPartyPerryNewPowers(newPowers);
+    } else {
+      setBrPlayers(prev => prev.map((p, i) => i === brCurrentIdx
+        ? { ...p, powers: p.powers.map((pw, pi) => pi === brPartyPerryPendingIndex ? { ...pw, used: true } : pw) }
+        : p));
+      setBrPartyPerryNewPowers(null);
+    }
+  }
+
+  function brClosePartyPerry() {
+    setBrPartyPerryPending(false);
+    setBrPartyPerryPendingIndex(null);
+    setBrPartyPerryNewPowers(null);
   }
 
   // ── Solo game logic ──
@@ -3415,6 +4188,7 @@ export default function App() {
             onFire={fireParabolaScan}
             usedScans={(isP1 ? p1ParabolaScanResults : p2ParabolaScanResults).map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
             bindingVowActive={currentBindingVowActive}
+            destroyedGrids={currentDestroyedGrids}
           />
         )}
 
@@ -3429,6 +4203,7 @@ export default function App() {
             onFire={fireSpiralScan}
             usedScans={(isP1 ? p1SpiralScanResults : p2SpiralScanResults).map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
             bindingVowActive={currentBindingVowActive}
+            destroyedGrids={currentDestroyedGrids}
           />
         )}
 
@@ -3510,6 +4285,378 @@ export default function App() {
         </div>
 
         <div style={{ marginTop: 20, fontSize: 11, color: '#445', display: 'flex', gap: 20, letterSpacing: '0.05em' }}>
+          <span><span style={{ color: '#00ff88' }}>●</span> HIT</span>
+          <span><span style={{ color: '#ff4444' }}>×</span> MISS</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Battle Royale views
+  // ─────────────────────────────────────────────────────────────
+
+  if (phase === 'br-setup') {
+    return (
+      <BattleRoyaleSetupScreen
+        difficulty={difficulty}
+        onStart={startBattleRoyale}
+        onBack={() => setPhase('mode')}
+      />
+    );
+  }
+
+  if (phase === 'br-pass') {
+    const toPlayer = brPlayers[brPassToIdx];
+    return (
+      <BrPassScreen
+        toName={toPlayer ? toPlayer.name : ''}
+        notifications={toPlayer ? toPlayer.notifications : []}
+        bonusTurn={brNextPassIsBonusTurn}
+        glitchTriggered={brGlitchTriggered}
+        announcement={brPassAnnouncement}
+        onContinue={handleBrPassContinue}
+      />
+    );
+  }
+
+  if (phase === 'br-round-end') {
+    const lastFinisherIdx = brRoundFinishOrder[brRoundFinishOrder.length - 1];
+    const lastFinisher = brPlayers[lastFinisherIdx];
+    const remainingAfterElim = brPlayers.map((p, i) =>
+      i === lastFinisherIdx ? { ...p, active: false, eliminationRound: brRound } : p
+    );
+    const remainingActive = remainingAfterElim.filter(p => p.active);
+    const isGameOver = remainingActive.length <= 1;
+    const winner = isGameOver ? remainingActive[0] : null;
+    const newElimOrder = [...brEliminationOrder, lastFinisherIdx];
+
+    return (
+      <div style={{ ...centeredPageStyle(), padding: '24px 16px' }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.2em', color: '#557', textTransform: 'uppercase' }}>
+          ROUND {brRound} COMPLETE
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '0.15em', color: '#ff6b6b',
+          textShadow: '0 0 24px #ff6b6baa', margin: '8px 0 4px' }}>
+          ☠ {lastFinisher ? lastFinisher.name : ''} ELIMINATED
+        </div>
+        <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em', marginBottom: 16 }}>
+          finished last in round {brRound}
+        </div>
+
+        <div style={{ marginBottom: 16, background: '#0d0d1a', border: '1px solid #1e1e3a',
+          borderRadius: 8, padding: '12px 24px', width: '100%', maxWidth: 400 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#557', marginBottom: 8 }}>
+            ROUND {brRound} FINISH ORDER
+          </div>
+          {brRoundFinishOrder.map((idx, pos) => {
+            const p = brPlayers[idx];
+            return (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '4px 0', borderBottom: pos < brRoundFinishOrder.length - 1 ? '1px solid #1e1e3a' : 'none' }}>
+                <span style={{ fontSize: 13, color: idx === lastFinisherIdx ? '#ff6b6b' : '#e0e0e0',
+                  fontWeight: 700, letterSpacing: '0.05em' }}>
+                  {pos + 1}. {p.name}
+                </span>
+                {idx === lastFinisherIdx && (
+                  <span style={{ fontSize: 10, color: '#ff6b6b', letterSpacing: '0.1em' }}>ELIMINATED</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {isGameOver ? (
+          <>
+            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: '0.15em', color: '#00ff88',
+              textShadow: '0 0 32px #00ff88aa', margin: '8px 0' }}>
+              {winner ? winner.name : ''} WINS!
+            </div>
+            <div style={{ fontSize: 11, color: '#557', letterSpacing: '0.1em', marginBottom: 16 }}>
+              BATTLE ROYALE CHAMPION
+            </div>
+            <div style={{ marginBottom: 16, background: '#0d0d1a', border: '1px solid #1e1e3a',
+              borderRadius: 8, padding: '12px 24px', width: '100%', maxWidth: 400 }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.2em', color: '#557', marginBottom: 8 }}>
+                FINAL LEADERBOARD
+              </div>
+              {[winner, ...newElimOrder.slice().reverse().map(i => brPlayers[i])].filter(Boolean).map((p, pos) => (
+                <div key={p.name + pos} style={{ display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', padding: '4px 0',
+                  borderBottom: pos < brPlayers.length - 1 ? '1px solid #1e1e3a' : 'none' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em',
+                    color: pos === 0 ? '#ffd700' : pos === 1 ? '#c0c0c0' : pos === 2 ? '#cd7f32' : '#557' }}>
+                    {pos === 0 ? '🏆' : `${pos + 1}.`} {p.name}
+                  </span>
+                  <span style={{ fontSize: 10, color: pos === 0 ? '#ffd700' : '#557', letterSpacing: '0.08em' }}>
+                    {pos === 0 ? 'WINNER' : `elim. round ${p.eliminationRound || brRound}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button onClick={goHome} style={{
+              padding: '12px 32px', background: '#001a0d', border: '2px solid #00ff88',
+              borderRadius: 6, color: '#00ff88', fontFamily: 'inherit', fontSize: 14,
+              fontWeight: 700, cursor: 'pointer', boxShadow: '0 0 14px #00ff8855',
+            }}>
+              NEW MISSION
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: '#557', letterSpacing: '0.1em', marginBottom: 8 }}>
+              {remainingActive.length} players remain
+            </div>
+            <button
+              onClick={() => {
+                setBrEliminationOrder(newElimOrder);
+                startBrNextRound(remainingAfterElim);
+              }}
+              style={{
+                padding: '14px 48px', background: '#1a0505', border: '2px solid #ff6b6b',
+                borderRadius: 8, color: '#ff6b6b', fontFamily: 'inherit', fontSize: 16,
+                fontWeight: 700, cursor: 'pointer', letterSpacing: '0.12em',
+                boxShadow: '0 0 24px #ff6b6b44',
+              }}
+            >
+              START ROUND {brRound + 1} →
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (phase === 'br' && brPlayers.length > 0) {
+    const player = brPlayers[brCurrentIdx];
+    if (!player) return null;
+    const activePlayers = brPlayers.filter(p => p.active);
+    const finishedCount = activePlayers.filter(p => p.finishedThisRound).length;
+    const gridLabelsMap = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0f', color: '#e0e0e0',
+        fontFamily: "'Courier New', Courier, monospace",
+        display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px' }}>
+
+        <div style={{ marginBottom: 20, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 28, letterSpacing: '0.2em', color: '#ff6b6b',
+            textShadow: '0 0 16px #ff6b6baa', margin: 0, fontWeight: 900, textTransform: 'uppercase' }}>
+            Battle Royale
+          </h1>
+          <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
+            Round {brRound} · <span style={{ color: '#ff6b6b' }}>{DIFFICULTY[difficulty].label.toUpperCase()}</span>
+            {' · '}<span style={{ color: '#ff6b6b', fontWeight: 700 }}>{player.name}</span>
+            {' · '}{finishedCount}/{activePlayers.length} finished
+            {brBonusTurnsRemaining > 0 && <span style={{ color: '#ffd700' }}> · ★ BONUS</span>}
+          </div>
+          <div style={{ fontSize: 10, color: '#334', marginTop: 2, letterSpacing: '0.08em' }}>
+            FIRE ON YOUR OWN GRID · IDENTIFY ALL YOUR HIDDEN FUNCTIONS
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
+          <Panel title="YOUR GRID">
+            <FireGrid grid={player.grid} shotMode={brShotMode} onFire={brFireShot} disabled={false} fogActive={brFogOfWarThisTurn} />
+          </Panel>
+          {shotModes.map(({ key, label }) => (
+            <Panel key={key} title={label} accent={!brFogOfWarThisTurn && brShotMode === key ? '#ff6b6b' : undefined}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 50px)', gap: 2 }}>
+                {player.grid.map((rowArr, ri) =>
+                  rowArr.map((cell, ci) => (
+                    <GraphCell key={`${ri}-${ci}`} shotType={key} col={ci} row={ri} cellShots={cell.shots} activeFunctions={player.functions} />
+                  ))
+                )}
+              </div>
+            </Panel>
+          ))}
+        </div>
+
+        {!brFogOfWarThisTurn && (
+          <ShotModeButtons shotMode={brShotMode} onChange={setBrShotMode}
+            disabledModes={player.bindingVowActive ? ['f'] : []}
+            destroyedModes={player.destroyedGrids} />
+        )}
+
+        {player.fogOfWarTurns > 0 && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#66b3ff', letterSpacing: '0.1em',
+            padding: '6px 12px', background: '#00090f', border: '1px solid #66b3ff33',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            🌫 FOG OF WAR · {player.fogOfWarTurns} turn{player.fogOfWarTurns !== 1 ? 's' : ''} remaining
+          </div>
+        )}
+        {brFogOfWarThisTurn && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#66b3ff', letterSpacing: '0.1em',
+            padding: '6px 12px', background: '#00090f', border: '1px solid #66b3ff33',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            🌫 FOG OF WAR ACTIVE · grid hidden — firing in a random grid this turn
+          </div>
+        )}
+        {player.bindingVowActive && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#a855f7', letterSpacing: '0.1em',
+            padding: '6px 12px', background: '#080412', border: '1px solid #a855f733',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            ⛓ BINDING VOW ACTIVE · f(x) locked · 2 shots per turn
+          </div>
+        )}
+        {player.destroyedGrids.length > 0 && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#ff4444', letterSpacing: '0.1em',
+            padding: '6px 12px', background: '#1a0505', border: '1px solid #ff444433',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            ☠ GRID DESTROYED · {player.destroyedGrids.map(k => gridLabelsMap[k]).join(', ')} · cannot fire new shots there
+          </div>
+        )}
+        {brGlitchBonusActive && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#00e5ff', letterSpacing: '0.1em',
+            padding: '6px 12px', background: '#00101a', border: '1px solid #00e5ff33',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            ⚡ GLITCH PASSIVE ACTIVATED · bonus turns redirected to you
+          </div>
+        )}
+
+        <FunctionBankPanel
+          difficulty={difficulty}
+          onGuess={brHandleGuessById}
+          identifiedIds={player.identified}
+          wrongGuessIds={player.wrongGuesses}
+          message={brMessage}
+          activeFunctions={player.functions}
+        />
+
+        {brPowersEnabled && (
+          <PowersPanel
+            powers={player.powers}
+            onUse={useBrPower}
+            shotsAllowed={brShotsAllowedThisTurn}
+            shotsFired={brShotsFiredThisTurn}
+            trapCardPending={false}
+            parabolaShotPending={brParabolaShotPending}
+            spiralShotPending={brSpiralShotPending}
+            partyPerryPending={brPartyPerryPending}
+            omnisciencePending={brOmnisciencePending || brTargetPickerPending && brOmnisciencePendingIndex !== null}
+            omnipotencePending={brOmnipotencePending || brTargetPickerPending && brOmnipotencePendingIndex !== null}
+            marauderPending={brMarauderPending || brTargetPickerPending && brMarauderPendingIndex !== null}
+            heatCheckActive={brHeatCheckActive}
+            heatCheckMissed={brHeatCheckMissed}
+            bindingVowActive={player.bindingVowActive}
+          />
+        )}
+
+        {brPowerError && (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#ff4444', letterSpacing: '0.08em',
+            padding: '6px 12px', background: '#1a0505', border: '1px solid #ff444433',
+            borderRadius: 4, width: '100%', maxWidth: 560 }}>
+            ⚠ {brPowerError}
+          </div>
+        )}
+
+        {brTargetPickerPending && (
+          <BrTargetPicker
+            players={brPlayers}
+            currentIdx={brCurrentIdx}
+            powerLabel={
+              brOmnisciencePendingIndex !== null ? 'OMNISCIENCE' :
+              brOmnipotencePendingIndex !== null ? 'OMNIPOTENCE' :
+              brFogOfWarPendingIndex !== null ? 'FOG OF WAR' :
+              brMarauderPendingIndex !== null ? 'MARAUDER' : 'POWER'
+            }
+            onSelect={handleBrTargetSelect}
+            onCancel={cancelBrTargetPicker}
+          />
+        )}
+
+        {brOmnisciencePending && (
+          <OmnisciencePicker
+            selectedGrid={brOmniscienceGrid}
+            onSelectGrid={setBrOmniscienceGrid}
+            onConfirm={brActivateOmniscience}
+            onCancel={brCancelOmniscience}
+            bindingVowActive={false}
+            destroyedGrids={[]}
+          />
+        )}
+        {brOmniscienceActive && brOmniscienceTargetIdx !== null && (
+          <OmniscienceReveal
+            gridKey={brOmniscienceGrid}
+            targetSlot={brPlayers[brOmniscienceTargetIdx]}
+            onClose={brCloseOmniscience}
+          />
+        )}
+
+        {brOmnipotencePending && brOmnipotenceTargetIdx !== null && (
+          <OmnipotencePicker
+            selectedGrid={brOmnipotenceGrid}
+            onSelectGrid={setBrOmnipotenceGrid}
+            onConfirm={brActivateOmnipotence}
+            onCancel={brCancelOmnipotence}
+            opponentDestroyedGrids={brPlayers[brOmnipotenceTargetIdx].destroyedGrids}
+          />
+        )}
+
+        {brParabolaShotPending && (
+          <ParabolaShotPicker
+            selectedGrid={brParabolaShotGridKey}
+            onSelectGrid={setBrParabolaShotGridKey}
+            selectedPreset={brParabolaShotPresetIdx}
+            onSelectPreset={setBrParabolaShotPresetIdx}
+            onFire={brFireParabolaScan}
+            usedScans={player.parabolaScanResults.map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
+            bindingVowActive={player.bindingVowActive}
+            destroyedGrids={player.destroyedGrids}
+          />
+        )}
+        <ParabolaScanResultCards results={player.parabolaScanResults} />
+
+        {brSpiralShotPending && (
+          <SpiralShotPicker
+            selectedGrid={brSpiralShotGridKey}
+            onSelectGrid={setBrSpiralShotGridKey}
+            selectedPreset={brSpiralShotPresetIdx}
+            onSelectPreset={setBrSpiralShotPresetIdx}
+            onFire={brFireSpiralScan}
+            usedScans={player.spiralScanResults.map(r => ({ gridKey: r.gridKey, presetIdx: r.presetIdx }))}
+            bindingVowActive={player.bindingVowActive}
+            destroyedGrids={player.destroyedGrids}
+          />
+        )}
+        <SpiralScanResultCards results={player.spiralScanResults} />
+
+        {brPartyPerryPending && (
+          <PartyPerryPicker onGuess={brConfirmPartyPerry} newPowers={brPartyPerryNewPowers} onClose={brClosePartyPerry} />
+        )}
+
+        {brMarauderPending && brMarauderTargetIdx !== null && (
+          <MarauderPicker
+            opponentPowers={brPlayers[brMarauderTargetIdx].powers}
+            onConfirm={brConfirmMarauder}
+            onCancel={brCancelMarauder}
+          />
+        )}
+
+        {(brParabolaShotPending || brSpiralShotPending || (brShotsFiredThisTurn > 0 && (brShotsFiredThisTurn >= brShotsAllowedThisTurn || brHeatCheckMissed))) && (
+          <button onClick={() => endBrTurn(false)} style={{
+            marginTop: 12, padding: '10px 32px', background: '#0d0d1a',
+            border: '2px solid #ff6b6b', borderRadius: 6, color: '#ff6b6b',
+            fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            letterSpacing: '0.1em', boxShadow: '0 0 10px #ff6b6b22',
+          }}>
+            END TURN →
+          </button>
+        )}
+
+        <div style={{ marginTop: 12, fontSize: 10, color: '#334', letterSpacing: '0.08em' }}>
+          {brShotsFiredThisTurn === 0
+            ? 'Fire a shot to reveal a square'
+            : brHeatCheckActive && brHeatCheckMissed
+              ? 'Missed — no more shots · guess or end your turn'
+              : brHeatCheckActive
+                ? `HIT · keep firing or guess · ${brShotsFiredThisTurn}/3 shots`
+                : brShotsFiredThisTurn < brShotsAllowedThisTurn
+                  ? 'Fire next shot · or guess / end turn'
+                  : 'Guess a function or end your turn'}
+        </div>
+
+        <div style={{ marginTop: 16, fontSize: 11, color: '#445', display: 'flex', gap: 20, letterSpacing: '0.05em' }}>
           <span><span style={{ color: '#00ff88' }}>●</span> HIT</span>
           <span><span style={{ color: '#ff4444' }}>×</span> MISS</span>
         </div>
