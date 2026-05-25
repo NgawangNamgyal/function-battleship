@@ -4436,16 +4436,15 @@ export default function App() {
   if (phase === 'br' && brPlayers.length > 0) {
     const player = brPlayers[brCurrentIdx];
     if (!player) return null;
-    const activePlayers = brPlayers.filter(p => p.active);
-    const finishedCount = activePlayers.filter(p => p.finishedThisRound).length;
     const gridLabelsMap = { f: 'f(x)', df: "f′(x)", F: 'F(x)' };
+    const ordinal = n => n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
 
     return (
       <div style={{ minHeight: '100vh', background: '#0a0a0f', color: '#e0e0e0',
         fontFamily: "'Courier New', Courier, monospace",
         display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px' }}>
 
-        <div style={{ marginBottom: 20, textAlign: 'center' }}>
+        <div style={{ marginBottom: 12, textAlign: 'center' }}>
           <h1 style={{ fontSize: 28, letterSpacing: '0.2em', color: '#ff6b6b',
             textShadow: '0 0 16px #ff6b6baa', margin: 0, fontWeight: 900, textTransform: 'uppercase' }}>
             Battle Royale
@@ -4453,12 +4452,46 @@ export default function App() {
           <div style={{ fontSize: 11, color: '#557', marginTop: 4, letterSpacing: '0.1em' }}>
             Round {brRound} · <span style={{ color: '#ff6b6b' }}>{DIFFICULTY[difficulty].label.toUpperCase()}</span>
             {' · '}<span style={{ color: '#ff6b6b', fontWeight: 700 }}>{player.name}</span>
-            {' · '}{finishedCount}/{activePlayers.length} finished
             {brBonusTurnsRemaining > 0 && <span style={{ color: '#ffd700' }}> · ★ BONUS</span>}
           </div>
           <div style={{ fontSize: 10, color: '#334', marginTop: 2, letterSpacing: '0.08em' }}>
             FIRE ON YOUR OWN GRID · IDENTIFY ALL YOUR HIDDEN FUNCTIONS
           </div>
+        </div>
+
+        {/* Round standings strip */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
+          marginBottom: 16, padding: '8px 12px',
+          background: '#0d0d1a', border: '1px solid #1e1e3a', borderRadius: 8,
+          width: '100%', maxWidth: 560 }}>
+          <span style={{ fontSize: 9, letterSpacing: '0.2em', color: '#334', alignSelf: 'center',
+            marginRight: 4, fontWeight: 700 }}>ROUND {brRound}</span>
+          {brPlayers.map((p, i) => {
+            if (!p.active) return null; // eliminated players from previous rounds, skip
+            const isCurrent = i === brCurrentIdx;
+            const isFinished = p.finishedThisRound;
+            const pos = brRoundFinishOrder.indexOf(i); // -1 if not finished yet
+            const finishPos = pos >= 0 ? pos + 1 : null;
+            return (
+              <div key={i} style={{
+                padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 5,
+                background: isFinished ? '#0d1a0a' : isCurrent ? '#1a0505' : '#0d0d1a',
+                border: `1px solid ${isFinished ? '#00ff8855' : isCurrent ? '#ff6b6b' : '#2a2a4a'}`,
+                color: isFinished ? '#00ff88' : isCurrent ? '#ff6b6b' : '#557',
+                boxShadow: isCurrent ? '0 0 8px #ff6b6b22' : 'none',
+              }}>
+                {isFinished && finishPos !== null && (
+                  <span style={{ fontSize: 9, opacity: 0.8 }}>{ordinal(finishPos)}</span>
+                )}
+                {p.name}
+                {isCurrent && !isFinished && (
+                  <span style={{ fontSize: 8, opacity: 0.7, letterSpacing: '0.1em' }}>▶</span>
+                )}
+                {isFinished && <span style={{ fontSize: 10 }}>✓</span>}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
