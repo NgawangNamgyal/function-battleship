@@ -536,6 +536,7 @@ function ModeSelectScreen({ difficulty, onSelect, onBack }) {
 }
 
 function RoundTypeScreen({ difficulty, onSelect, onBack }) {
+  const [powersEnabled, setPowersEnabled] = useState(true);
   const [doubleRarity, setDoubleRarity] = useState(false);
   const types = [
     { key: 'lightning', label: 'LIGHTNING', desc: 'Single round · first to identify wins' },
@@ -550,25 +551,40 @@ function RoundTypeScreen({ difficulty, onSelect, onBack }) {
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 320 }}>
         {types.map(t => (
-          <MenuButton key={t.key} label={t.label} desc={t.desc} onClick={() => onSelect(t.key, doubleRarity)} />
+          <MenuButton key={t.key} label={t.label} desc={t.desc} onClick={() => onSelect(t.key, doubleRarity, powersEnabled)} />
         ))}
       </div>
-      <div style={{ marginTop: 12, marginBottom: 4, width: 320 }}>
-        <button onClick={() => setDoubleRarity(p => !p)} style={{
+      <div style={{ marginTop: 12, marginBottom: 4, width: 320, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button onClick={() => setPowersEnabled(p => !p)} style={{
           width: '100%', padding: '10px 16px',
-          background: doubleRarity ? '#0a1020' : '#0d0d1a',
-          border: `2px solid ${doubleRarity ? '#ffd700' : '#2a2a4a'}`,
-          borderRadius: 6, color: doubleRarity ? '#ffd700' : '#557',
+          background: powersEnabled ? '#0a1020' : '#0d0d1a',
+          border: `2px solid ${powersEnabled ? '#66b3ff' : '#2a2a4a'}`,
+          borderRadius: 6, color: powersEnabled ? '#66b3ff' : '#557',
           fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
           letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <span>★ DOUBLE RARITY ODDS</span>
-          <span>{doubleRarity ? 'ON' : 'OFF'}</span>
+          <span>⚡ POWERS</span>
+          <span>{powersEnabled ? 'ENABLED' : 'DISABLED'}</span>
         </button>
-        {doubleRarity && (
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', marginTop: 4, textAlign: 'center' }}>
-            COMMON 10% · UNCOMMON 30% · RARE 40% · LEGENDARY 20%
-          </div>
+        {powersEnabled && (
+          <>
+            <button onClick={() => setDoubleRarity(p => !p)} style={{
+              width: '100%', padding: '10px 16px',
+              background: doubleRarity ? '#0a1020' : '#0d0d1a',
+              border: `2px solid ${doubleRarity ? '#ffd700' : '#2a2a4a'}`,
+              borderRadius: 6, color: doubleRarity ? '#ffd700' : '#557',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>★ DOUBLE RARITY ODDS</span>
+              <span>{doubleRarity ? 'ON' : 'OFF'}</span>
+            </button>
+            {doubleRarity && (
+              <div style={{ fontSize: 10, color: '#666', letterSpacing: '0.1em', textAlign: 'center' }}>
+                COMMON 10% · UNCOMMON 30% · RARE 40% · LEGENDARY 20%
+              </div>
+            )}
+          </>
         )}
       </div>
       <BackButton label="← CHANGE MODE" onClick={onBack} />
@@ -2473,6 +2489,7 @@ export default function App() {
   const [brCurrentIdx, setBrCurrentIdx] = useState(0);
   const [brPassToIdx, setBrPassToIdx] = useState(0);
   const [brRound, setBrRound] = useState(1);
+  const [mpPowersEnabled, setMpPowersEnabled] = useState(true);
   const [brPowersEnabled, setBrPowersEnabled] = useState(true);
   const [brDoubleRarityDefault, setBrDoubleRarityDefault] = useState(false);
   const [brRoundFinishOrder, setBrRoundFinishOrder] = useState([]); // player indices in finish order
@@ -2544,25 +2561,30 @@ export default function App() {
     }
   }
 
-  function handleRoundTypeSelect(type, doubleRarity) {
+  function handleRoundTypeSelect(type, doubleRarity, powersEnabled) {
     setRoundType(type);
     setMpCurrentRound(1);
     setMpP1RoundWins(0);
     setMpP2RoundWins(0);
     setMpDoubleRarityDefault(!!doubleRarity);
-    startMpRound(1, !!doubleRarity);
+    setMpPowersEnabled(powersEnabled !== false);
+    startMpRound(1, !!doubleRarity, powersEnabled !== false);
   }
 
-  function startMpRound(roundNum, useDoubled = false) {
+  function startMpRound(roundNum, useDoubled = false, usePowers = true) {
     const isChaos = difficulty === 'chaos';
-    const basePowerCount = isChaos ? 2 : 1;
-    let newP1Powers = rollPowers(basePowerCount, useDoubled);
-    let newP2Powers = rollPowers(basePowerCount, useDoubled);
+    let newP1Powers = [];
+    let newP2Powers = [];
     let coinWinner = null;
-    if (isChaos) {
-      coinWinner = Math.random() < 0.5 ? 1 : 2;
-      if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
-      else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
+    if (usePowers) {
+      const basePowerCount = isChaos ? 2 : 1;
+      newP1Powers = rollPowers(basePowerCount, useDoubled);
+      newP2Powers = rollPowers(basePowerCount, useDoubled);
+      if (isChaos) {
+        coinWinner = Math.random() < 0.5 ? 1 : 2;
+        if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
+        else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
+      }
     }
     setP1Powers(newP1Powers);
     setP2Powers(newP2Powers);
@@ -2624,7 +2646,7 @@ export default function App() {
     setP1FogOfWarTurns(0);
     setP2FogOfWarTurns(0);
     setMpFogOfWarThisTurn(false);
-    setPhase('power-draw');
+    setPhase(usePowers ? 'power-draw' : 'mp');
   }
 
   function startPowerTestGame(p1TestPowers, p2TestPowers, p1Fns, p2Fns) {
@@ -3800,12 +3822,17 @@ export default function App() {
     // Round 2+: both players start fresh; coin flip gives the winner 1 extra
     // Chaos difficulty: 2 base powers per player; Round 3 / double rarity toggle: doubled odds
     const useDoubled = mpDoubleRarityDefault || newRound === 3;
-    const basePowerCount = difficulty === 'chaos' ? 2 : 1;
-    let newP1Powers = rollPowers(basePowerCount, useDoubled);
-    let newP2Powers = rollPowers(basePowerCount, useDoubled);
-    const coinWinner = Math.random() < 0.5 ? 1 : 2;
-    if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
-    else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
+    let newP1Powers = [];
+    let newP2Powers = [];
+    let coinWinner = null;
+    if (mpPowersEnabled) {
+      const basePowerCount = difficulty === 'chaos' ? 2 : 1;
+      newP1Powers = rollPowers(basePowerCount, useDoubled);
+      newP2Powers = rollPowers(basePowerCount, useDoubled);
+      coinWinner = Math.random() < 0.5 ? 1 : 2;
+      if (coinWinner === 1) newP1Powers = [...newP1Powers, ...rollPowers(1, useDoubled)];
+      else newP2Powers = [...newP2Powers, ...rollPowers(1, useDoubled)];
+    }
     setP1Powers(newP1Powers);
     setP2Powers(newP2Powers);
     setMpCoinFlipWinner(coinWinner);
@@ -3866,7 +3893,7 @@ export default function App() {
     setP1FogOfWarTurns(0);
     setP2FogOfWarTurns(0);
     setMpFogOfWarThisTurn(false);
-    setPhase('power-draw');
+    setPhase(mpPowersEnabled ? 'power-draw' : 'mp');
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -4389,24 +4416,26 @@ export default function App() {
           activeFunctions={targetSlot.functions}
         />
 
-        <PowersPanel
-          powers={isP1 ? p1Powers : p2Powers}
-          onUse={useMpPower}
-          shotsAllowed={mpShotsAllowedThisTurn}
-          shotsFired={mpShotsFiredThisTurn}
-          trapCardPending={mpTrapCardPending}
-          parabolaShotPending={mpParabolaShotPending}
-          spiralShotPending={mpSpiralShotPending}
-          partyPerryPending={mpPartyPerryPending}
-          omnisciencePending={mpOmnisciencePending}
-          omnipotencePending={mpOmnipotencePending}
-          marauderPending={mpMarauderPending}
-          heatCheckActive={mpHeatCheckActive}
-          heatCheckMissed={mpHeatCheckMissed}
-          bindingVowActive={currentBindingVowActive}
-        />
+        {mpPowersEnabled && (
+          <PowersPanel
+            powers={isP1 ? p1Powers : p2Powers}
+            onUse={useMpPower}
+            shotsAllowed={mpShotsAllowedThisTurn}
+            shotsFired={mpShotsFiredThisTurn}
+            trapCardPending={mpTrapCardPending}
+            parabolaShotPending={mpParabolaShotPending}
+            spiralShotPending={mpSpiralShotPending}
+            partyPerryPending={mpPartyPerryPending}
+            omnisciencePending={mpOmnisciencePending}
+            omnipotencePending={mpOmnipotencePending}
+            marauderPending={mpMarauderPending}
+            heatCheckActive={mpHeatCheckActive}
+            heatCheckMissed={mpHeatCheckMissed}
+            bindingVowActive={currentBindingVowActive}
+          />
+        )}
 
-        {mpPowerError && (
+        {mpPowersEnabled && mpPowerError && (
           <div style={{
             marginBottom: 8, fontSize: 11, color: '#ff4444',
             letterSpacing: '0.08em', padding: '6px 12px',
