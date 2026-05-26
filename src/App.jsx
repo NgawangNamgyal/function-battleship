@@ -3072,8 +3072,11 @@ export default function App() {
     }
     // Opponent-targeting powers — first pick the target
     if (power.id === 'omniscience') {
+      // BR: reveal your own grid (you're solving your own functions, not attacking opponents)
       setBrOmnisciencePendingIndex(powerIndex);
-      setBrTargetPickerPending(true);
+      setBrOmniscienceTargetIdx(brCurrentIdx);
+      setBrOmnisciencePending(true);
+      setBrOmniscienceGrid(null);
       return;
     }
     if (power.id === 'omnipotence') {
